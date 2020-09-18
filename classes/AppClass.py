@@ -13,6 +13,7 @@ class App:
     """
 
     def __init__(self, path):
+        # se registra el nombre y el path, andemas de los path de los archivos configuradores.
         self.name = path.split('/')[-1]
         self.path = path
         self.buildGradleFiles = self.findFilePaths(path, "*uild.gradle")
@@ -20,12 +21,15 @@ class App:
         self.dontObfuscateRule = False
         self.dontObfuscateFiles = []
 
+        # se ve si esta activado proguard y donde estan los archivos de reglas
         isObfGradle = self.isAppObfuscatedG(self.buildGradleFiles)
         isObfProp = self.isAppObfuscatedP(self.propertiesPaths)
 
+        # Si se existen archivos de reglas en uso, significa que se usa proguard y tiene reglas
         self.isObf = (len(isObfGradle) != 0) or (len(isObfProp) != 0)
 
         if self.isObf:
+            # si esta ofuscado se buscan las reglas y los onmbres de las clases
             proguardRulePaths = []
             for ruleFileName in (isObfProp + isObfGradle):
                 proguardRulePaths.extend(self.findFilePaths(path, ruleFileName))
@@ -45,7 +49,7 @@ class App:
                 self.classes.append(JavaClass(pth))
             for pth in ktClassesPaths:
                 self.classes.append(KtClass(pth))
-
+        # se registran las dependencias
         self.dependencies = self.extractDependencies(self.buildGradleFiles)
 
     def getRules(self):
@@ -99,6 +103,8 @@ class App:
 
     def findFilePaths(self, path, file):
         return glob.glob(path + "/**/" + file, recursive=True)
+
+    """ Se ve si estan ofuscadas y donde se encuentran los archivos de reglas"""
 
     def isAppObfuscatedG(self, build):
         ruleFiles = []
@@ -163,6 +169,12 @@ class App:
         return ruleFiles
 
     def extractDependencies(self, build):
+        """
+        Se entrega lista de dependecias
+
+        :param build: path de archivo gradle.
+        :return:
+        """
         dependencies = []
 
         for file in build:
@@ -224,7 +236,7 @@ class Rules:
 
 class ProGuard:
     """
-    Clase
+    Clase que modela un archivo proguard.
     """
 
     def __init__(self, path, app):
