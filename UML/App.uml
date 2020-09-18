@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diagram>
+  <ID>Python</ID>
+  <OriginalElement>classes.AppClass.App</OriginalElement>
+  <nodes>
+    <node x="72.0" y="691.0">classes.AppClass.AppClass</node>
+    <node x="461.0" y="691.0">classes.AppClass.ProGuard</node>
+    <node x="224.0" y="903.0">classes.AppClass.KtClass</node>
+    <node x="0.0" y="0.0">classes.AppClass.App</node>
+    <node x="741.0" y="691.0">classes.AppClass.Rules</node>
+    <node x="304.0" y="0.0">classes.FDroidClass.FDroid</node>
+    <node x="0.0" y="903.0">classes.AppClass.JavaClass</node>
+  </nodes>
+  <notes />
+  <edges>
+    <edge source="classes.AppClass.KtClass" target="classes.AppClass.AppClass">
+      <point x="0.0" y="-37.0" />
+      <point x="320.0" y="878.0" />
+      <point x="280.5" y="878.0" />
+      <point x="69.5" y="81.0" />
+    </edge>
+    <edge source="classes.AppClass.JavaClass" target="classes.AppClass.AppClass">
+      <point x="0.0" y="-37.0" />
+      <point x="102.0" y="878.0" />
+      <point x="141.5" y="878.0" />
+      <point x="-69.5" y="81.0" />
+    </edge>
+  </edges>
+  <settings layout="Hierarchic Group" zoom="0.47342026078234706" x="460.0" y="479.0" />
+  <SelectedNodes>
+    <node>classes.AppClass.ProGuard</node>
+  </SelectedNodes>
+  <Categories>
+    <Category>Methods</Category>
+    <Category>Fields</Category>
+  </Categories>
+</Diagram>
+
