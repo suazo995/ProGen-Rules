@@ -16,6 +16,9 @@ from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
 """
 class AppAnalyser:
 
+    def __init__(self, app: App):
+        self.app = app
+
     def rulesForDepInApp(self, dep):
         """
             Entrega las reglas para una dependencia en específico.
@@ -68,8 +71,6 @@ class AppAnalyser:
                 pass
         return rulesForImp
 
-    def __init__(self, app: App):
-        self.app = app
 """
 
 
