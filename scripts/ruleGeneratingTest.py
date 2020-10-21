@@ -50,7 +50,7 @@ if __name__ == '__main__':
         rulesExtracted = []
 
         for app in appsToTest:
-            rulesExtracted.append(AppAnalyser(app).rulesForDeps())
+            rulesExtracted.append(app.getRules())
 
         similarities = []
 
