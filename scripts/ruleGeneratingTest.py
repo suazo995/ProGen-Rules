@@ -23,6 +23,7 @@ if __name__ == '__main__':
         return {"correct": percentageIn, "extra": percentageExtra, "remainding": percentageRemainding}
 
     path = "/Volumes/Box1/JPS/intTrabajoTitulo/work/" + sys.argv[2]
+    percentage = float(sys.argv[3])
     repo = FDroid(path)
     print("\n")
 
@@ -32,7 +33,7 @@ if __name__ == '__main__':
     extraPrTot = 0
     remainderPrTot = 0
 
-    for i in range(10):
+    for i in range(20):
 
         appsToTest = []
 
@@ -45,7 +46,7 @@ if __name__ == '__main__':
                 appsToTest.append(app)
 
 
-        rulesGenerated = analyser.rulesForAllDepsList(appsToTest)
+        rulesGenerated = analyser.rulesForAllDepsList(appsToTest, percentage)
 
         rulesExtracted = []
 
