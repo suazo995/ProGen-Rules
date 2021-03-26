@@ -1,88 +1,101 @@
 if __name__ == '__main__':
     import sys
-    sys.path.insert(1, '/Volumes/Box1/JPS/intTrabajoTitulo/work/Src')
+    if sys.argv[1]=="-h" or sys.argv[1]=="--h" or sys.argv[1]=="--help":
+        print("Argumentos del Comando: <Cantidad de Apps a Testear> <Carpeta de la Repo> <Nº de Bloques de Porcentajes a Comparar>")
+    else:
+        sys.path.insert(1, '/Volumes/WanShiTong/Archive/UChile/Título/work/Src')
 
-    from classes.FDroidClass import FDroid
-    from analysis.fdroidAnalyser import FDroidAnalyser, AppAnalyser
+        from classes.FDroidClass import FDroid
+        from analysis.fdroidAnalyser import FDroidAnalyser, AppAnalyser
 
-    def listSimilarityPercentage(list1, list2):
+        def listSimilarityPercentage(list1, list2):
 
-        countInList = 0
+            countInList = 0
 
-        for elm in list1:
-            if elm in list2: countInList +=1
+            for elm in list1:
+                if elm in list2: countInList +=1
 
-        percentageIn = (countInList/len(list2))*100
+            percentageIn = (countInList/len(list2))*100
 
-        if len(list1) > 0:
-            percentageExtra = ((len(list1)-countInList)/len(list1))*100
-        else:
-            percentageExtra = 100
-        percentageRemainding = ((len(list2)-countInList)/len(list2))*100
+            if len(list1) > 0:
+                percentageExtra = ((len(list1)-countInList)/len(list1))*100
+            else:
+                percentageExtra = 100
+            percentageRemainding = ((len(list2)-countInList)/len(list2))*100
 
-        return {"correct": percentageIn, "extra": percentageExtra, "remainding": percentageRemainding}
-
-    path = "/Volumes/Box1/JPS/intTrabajoTitulo/work/" + sys.argv[2]
-    percentage = float(sys.argv[3])
-    repo = FDroid(path)
-    print("\n")
-
-    analyser = FDroidAnalyser(repo)
-
-    correctPrTot = 0
-    extraPrTot = 0
-    remainderPrTot = 0
-
-    for i in range(20):
-
-        appsToTest = []
-
-        Num = int(sys.argv[1])
-
-        while len(appsToTest) < Num:
-            app = repo.randomObfuscatedDontWarn()
-
-            if app not in appsToTest and len(AppAnalyser(app).rulesForDeps()) > 1 and len(app.getDependencies()) > 1:
-                appsToTest.append(app)
+            return {"correct": percentageIn, "extra": percentageExtra, "remainding": percentageRemainding}
 
 
-        rulesGenerated = analyser.rulesForAllDepsList(appsToTest, percentage)
+        path = '/Volumes/WanShiTong/Archive/UChile/Título/work/' + sys.argv[2]
+        repo = FDroid(path)
+        analyser = FDroidAnalyser(repo)
+        print("\n")
 
-        rulesExtracted = []
+        f = open("../../results/testPorcentajes.csv", "w")
+        f.write("Porcentaje de Presencia, Correctas, Sobrantes, Faltantes\n")
 
-        for app in appsToTest:
-            rulesExtracted.append(app.getRules())
+        blocksPorcentages = int(sys.argv[3])
 
-        similarities = []
+        for i in range(blocksPorcentages):
+            percentage = (i+1)*(100/blocksPorcentages)
 
-        for i in range(len(rulesGenerated)):
-            extracted = rulesExtracted[i]
-            generated = rulesGenerated[i]
-            sim = listSimilarityPercentage(generated, extracted)
-            similarities.append(sim)
-            #print(str(sim) + "\n")
-            #print("********************\n********************")
+            correctPrTot = 0
+            extraPrTot = 0
+            remainderPrTot = 0
 
-        correctPr = 0
-        extraPr = 0
-        remainderPr = 0
+            for k in range(10):
 
-        for elm in similarities:
-            correctPr += (elm["correct"])
-            extraPr += (elm["extra"])
-            remainderPr += (elm["remainding"])
+                appsToTest = []
 
-        print("Correct Avg: " + str(correctPr/Num))
-        print("Extra Avg: " + str(extraPr / Num))
-        print("Remainder Avg: " + str(remainderPr / Num))
-        print("\n********************\n")
+                Num = int(sys.argv[1])
 
-        correctPrTot = correctPrTot + (correctPr/Num)
-        extraPrTot = extraPrTot + (extraPr / Num)
-        remainderPrTot = remainderPrTot + (remainderPr / Num)
+                while len(appsToTest) < Num:
+                    app = repo.randomObfuscatedDontWarn()
+                    appAnalyser = AppAnalyser(app)
 
-    print("********************\n********************\n")
-    print("Correct Avg: " + str(correctPrTot / 10))
-    print("Extra Avg: " + str(extraPrTot / 10))
-    print("Remainder Avg: " + str(remainderPrTot / 10))
-    print("\n********************\n********************\n")
+                    if app not in appsToTest and len(appAnalyser.rulesForDeps()) > 1 and len(app.getDependencies()) > 1:
+                        appsToTest.append(app)
+
+
+                rulesGenerated = analyser.rulesForAllDepsList(appsToTest, percentage)
+
+                rulesExtracted = []
+
+                for app in appsToTest:
+                    rulesExtracted.append(app.getRules())
+
+                similarities = []
+
+                for j in range(len(rulesGenerated)):
+                    extracted = rulesExtracted[j]
+                    generated = rulesGenerated[j]
+                    sim = listSimilarityPercentage(generated, extracted)
+                    similarities.append(sim)
+                    #print(str(sim) + "\n")
+                    #print("********************\n********************")
+
+                correctPr = 0
+                extraPr = 0
+                remainderPr = 0
+
+                for elm in similarities:
+                    correctPr += (elm["correct"])
+                    extraPr += (elm["extra"])
+                    remainderPr += (elm["remainding"])
+
+                print("Correct Avg: " + str(correctPr/Num))
+                print("Extra Avg: " + str(extraPr / Num))
+                print("Remainder Avg: " + str(remainderPr / Num))
+                print("\n********************\n")
+
+                correctPrTot = correctPrTot + (correctPr/Num)
+                extraPrTot = extraPrTot + (extraPr / Num)
+                remainderPrTot = remainderPrTot + (remainderPr / Num)
+
+            print("********************\n********************\n")
+            print("Correct Avg: " + str(correctPrTot / 10))
+            print("Extra Avg: " + str(extraPrTot / 10))
+            print("Remainder Avg: " + str(remainderPrTot / 10))
+            print("\n********************\n********************\n")
+            f.write(str(percentage) + "%, " + str(correctPrTot / 10) + ", " + str(extraPrTot / 10) + ", " +
+                    str(remainderPrTot / 10) + "\n")

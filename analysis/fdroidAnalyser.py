@@ -8,13 +8,13 @@ import numpy as np
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
 
-"""
-    Clase que analisa una aplicación dada
-    
-    :param app: un objeto App.
-
-"""
 class AppAnalyser:
+    """
+        Clase que analisa una aplicación dada
+
+        :param app: un objeto App.
+
+    """
 
     def __init__(self, app: App):
         self.app = app
@@ -446,7 +446,7 @@ class FDroidAnalyser:
             frec = compRulesSorted[key]
             perc = (frec/appsWithDep)*100
 
-            if perc <= percentage:
+            if perc >= percentage:
                 returnRules.append(key)
 
         if prnt: f.close()
