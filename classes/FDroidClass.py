@@ -73,3 +73,6 @@ class FDroid:
 
     def ofAppsWithoutDontOfRule(self):
         return self.appsOfuscadasSinDontOf
+
+    def saveInDB(self, user, pswd):
+        base = DBConnect(user, pswd)
