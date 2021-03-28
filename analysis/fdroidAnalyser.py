@@ -32,7 +32,10 @@ class AppAnalyser:
 
         for im in imports:
             if dep in im:
-                relatedImports.append(im.split(".")[-1])
+                imAAgregar = im.split(".")[-1]
+                if imAAgregar == "*":
+                    imAAgregar = im.split(".")[-2]
+                relatedImports.append(imAAgregar)
 
         rulesForThisDep = []
         compRules = []
@@ -97,7 +100,6 @@ class FDroidAnalyser:
     def __init__(self, fdroid: FDroid):
         self.repo = fdroid
 
-
     def distinctRulesPerDep(self):
         """
             Grafica el numero de reglas por Dependencia.
@@ -126,8 +128,6 @@ class FDroidAnalyser:
         plt.tight_layout()
         plt.show()
 
-
-
     def numberOfRules(self):
         """
             Grafica el numero de reglas por App.
@@ -149,7 +149,6 @@ class FDroidAnalyser:
         plt.title("Number of Rules per App", loc='center', wrap=True, pad=2)
         plt.show()
 
-
     def obfVsSinObf(self):
         """
             Visualizacion de la cantidad de apps con y sin ofuscación.
@@ -160,7 +159,6 @@ class FDroidAnalyser:
                 labels=labels, autopct='%1.1f%%', shadow=True, startangle=90)
         plt.axis('equal')
         plt.show()
-
 
     def obfWithDontObf(self):
         """
@@ -176,7 +174,6 @@ class FDroidAnalyser:
                 labels=labels, autopct='%1.1f%%', shadow=True, startangle=90)
         plt.axis('equal')
         plt.show()
-
 
     def dependenciesHistogram(self):
         """
@@ -197,7 +194,6 @@ class FDroidAnalyser:
         plt.ylabel("Apps")
         plt.title("Number of Dependencies per App", loc='center', wrap=True, pad=2)
         plt.show()
-
 
     def depRuleHistogram(self):
         """
@@ -222,7 +218,6 @@ class FDroidAnalyser:
         plt.ylabel("Dependencies")
         plt.title("Number of Rules per Dependency on an App", loc='center', wrap=True, pad=2)
         plt.show()
-
 
     """
     def repeatedRulesPerImport(self, times: int):

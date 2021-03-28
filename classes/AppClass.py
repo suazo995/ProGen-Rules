@@ -3,6 +3,7 @@ import os
 import re
 import json
 from json import JSONEncoder
+from classes.DBConnect import DBConnect
 
 
 class App:
@@ -102,12 +103,15 @@ class App:
         return self.dependencies
 
     def getAllImports(self):
-        imports = []
+        try:
+            imports = []
 
-        for cl in self.getClasses():
-            imports.extend(cl.getImports())
+            for cl in self.getClasses():
+                imports.extend(cl.getImports())
 
-        return imports
+            return imports
+        except TypeError:
+            print(self.getClasses())
 
     def isObfuscated(self):
         return self.isObf
@@ -238,6 +242,12 @@ class App:
             return[]
         return ret
 
+    def saveInDB(self, db: DBConnect):
+        appId = db.saveApp(self)
+        db.saveDeps(appId, self.getDependencies())
+        db.saveRules(appId, self.getRules())
+        db.saveImports(appId, self.getAllImports())
+
 
 class Rules:
 
@@ -314,6 +324,7 @@ class AppClass:
             return ret
         except UnicodeDecodeError:
             print('*************************  unicode decode error: no se puede leer las reglas')
+            return []
 
     def getImports(self):
         return self.imports
