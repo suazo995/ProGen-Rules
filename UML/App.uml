@@ -3,30 +3,30 @@
   <ID>Python</ID>
   <OriginalElement>classes.AppClass.App</OriginalElement>
   <nodes>
-    <node x="72.0" y="691.0">classes.AppClass.AppClass</node>
-    <node x="461.0" y="691.0">classes.AppClass.ProGuard</node>
-    <node x="224.0" y="903.0">classes.AppClass.KtClass</node>
+    <node x="684.0" y="0.0">classes.AppClass.AppClass</node>
+    <node x="0.0" y="735.0">classes.AppClass.ProGuard</node>
+    <node x="618.0" y="234.0">classes.AppClass.KtClass</node>
     <node x="0.0" y="0.0">classes.AppClass.App</node>
-    <node x="741.0" y="691.0">classes.AppClass.Rules</node>
+    <node x="280.0" y="735.0">classes.AppClass.Rules</node>
     <node x="304.0" y="0.0">classes.FDroidClass.FDroid</node>
-    <node x="0.0" y="903.0">classes.AppClass.JavaClass</node>
+    <node x="830.0" y="234.0">classes.AppClass.JavaClass</node>
   </nodes>
   <notes />
   <edges>
-    <edge source="classes.AppClass.KtClass" target="classes.AppClass.AppClass">
-      <point x="0.0" y="-37.0" />
-      <point x="320.0" y="878.0" />
-      <point x="280.5" y="878.0" />
-      <point x="69.5" y="81.0" />
-    </edge>
     <edge source="classes.AppClass.JavaClass" target="classes.AppClass.AppClass">
       <point x="0.0" y="-37.0" />
-      <point x="102.0" y="878.0" />
-      <point x="141.5" y="878.0" />
-      <point x="-69.5" y="81.0" />
+      <point x="932.0" y="209.0" />
+      <point x="892.5" y="209.0" />
+      <point x="69.5" y="92.0" />
+    </edge>
+    <edge source="classes.AppClass.KtClass" target="classes.AppClass.AppClass">
+      <point x="0.0" y="-37.0" />
+      <point x="714.0" y="209.0" />
+      <point x="753.5" y="209.0" />
+      <point x="-69.5" y="92.0" />
     </edge>
   </edges>
-  <settings layout="Hierarchic Group" zoom="0.47342026078234706" x="460.0" y="479.0" />
+  <settings layout="Hierarchic Group" zoom="1.0907060422074681" x="517.0" y="459.5" />
   <SelectedNodes>
     <node>classes.AppClass.ProGuard</node>
   </SelectedNodes>

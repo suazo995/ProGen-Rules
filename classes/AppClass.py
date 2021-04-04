@@ -3,6 +3,7 @@ import os
 import re
 import json
 from json import JSONEncoder
+from classes.DBConnect import DBConnect
 
 
 class App:
@@ -20,6 +21,7 @@ class App:
         self.propertiesPaths = self.findFilePaths(path, "*roject.properties")
         self.dontObfuscateRule = False
         self.dontObfuscateFiles = []
+        self.classes = []
 
         # se ve si esta activado proguard y donde estan los archivos de reglas
         isObfGradle = self.isAppObfuscatedG(self.buildGradleFiles)
@@ -43,7 +45,6 @@ class App:
 
             javaClassesPaths = self.findFilePaths(path, "*.java")
             ktClassesPaths = self.findFilePaths(path, "*.kt")
-            self.classes = []
 
             for pth in javaClassesPaths:
                 self.classes.append(JavaClass(pth))
@@ -57,6 +58,9 @@ class App:
         for pg in self.proguardRuleFiles:
             retRules.extend(pg.getRules())
         return retRules
+
+    def getClasses(self):
+        return self.classes
 
     def getPgFiles(self):
         """Entrega los objetos de los archivos de reglas proguard."""
@@ -97,6 +101,17 @@ class App:
     def getDependencies(self):
         """ Entrega las dependencias del app"""
         return self.dependencies
+
+    def getAllImports(self):
+        try:
+            imports = []
+
+            for cl in self.getClasses():
+                imports.extend(cl.getImports())
+
+            return imports
+        except TypeError:
+            print(self.getClasses())
 
     def isObfuscated(self):
         return self.isObf
@@ -227,6 +242,12 @@ class App:
             return[]
         return ret
 
+    def saveInDB(self, db: DBConnect):
+        appId = db.saveApp(self)
+        db.saveDeps(appId, self.getDependencies())
+        db.saveRules(appId, self.getRules())
+        db.saveImports(appId, self.getAllImports())
+
 
 class Rules:
 
@@ -303,6 +324,10 @@ class AppClass:
             return ret
         except UnicodeDecodeError:
             print('*************************  unicode decode error: no se puede leer las reglas')
+            return []
+
+    def getImports(self):
+        return self.imports
 
 
 class JavaClass(AppClass):

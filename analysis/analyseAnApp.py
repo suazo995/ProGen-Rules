@@ -2,6 +2,11 @@
 Script para analisar una app.
 """
 
+import sys
+
+# insert at 1, 0 is the script path (or '' in REPL)
+sys.path.insert(1, '/Volumes/Box1/JPS/intTrabajoTitulo/work/Src')
+
 from classes.AppClass import App
 from analysis.fdroidAnalyser import AppAnalyser
 from pprint import pprint
@@ -20,3 +25,5 @@ print('')
 
 analyser = AppAnalyser(app)
 analyser.rulesForDeps()
+
+pprint(app.getAllImports())

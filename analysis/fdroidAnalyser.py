@@ -2,19 +2,20 @@ from classes.AppClass import *
 import re
 import collections
 from classes.FDroidClass import FDroid
+from classes.DBConnect import DBConnect
 from pprint import pprint
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
 
-"""
-    Clase que analisa una aplicación dada
-    
-    :param app: un objeto App.
-
-"""
 class AppAnalyser:
+    """
+        Clase que analisa una aplicación dada
+
+        :param app: un objeto App.
+
+    """
 
     def __init__(self, app: App):
         self.app = app
@@ -26,15 +27,32 @@ class AppAnalyser:
             :param self: Objeto analisador de una app, dep: Nombre de la dependencia.
             :return: lista de reglas atinentes a la dependencia.
         """
+
+        imports = self.app.getAllImports()
+        relatedImports = []
+
+        for im in imports:
+            if dep in im:
+                imAAgregar = im.split(".")[-1]
+                if imAAgregar == "*" or imAAgregar == "**":
+                    imAAgregar = im.split(".")[-2]
+                relatedImports.append(imAAgregar)
+
         rulesForThisDep = []
+        compRules = []
 
         for pg in self.app.proguardRuleFiles:
             for rule in pg.getRules():
                 if dep in rule:
                     rulesForThisDep.append(rule)
+                else:
+                    for im in relatedImports:
+                        if im in rule:
+                            rulesForThisDep.append(rule)
+                        else:
+                            compRules.append(rule)
 
-        return rulesForThisDep
-
+        return [rulesForThisDep, compRules]
 
     def rulesForDeps(self):
         """
@@ -46,7 +64,7 @@ class AppAnalyser:
         rulesForDeps = []
 
         for dep in self.app.dependencies:
-            rulesForDeps.extend(self.rulesForDepInApp(dep))
+            rulesForDeps.extend(self.rulesForDepInApp(dep)[0])
 
         return rulesForDeps
 """
@@ -70,10 +88,57 @@ class AppAnalyser:
             else:
                 pass
         return rulesForImp
-
 """
 
 
+class DataBaseAnalyser:
+    def __init__(self, database: DBConnect):
+        self.database = database
+
+    def rulesForAllDepsExcludingApp(self, application: App, percentage = 25, prnt=False):
+        """
+            Entrega todas las reglas para todas las dependencias de una app excluyendo las reglas de la app determinada.
+
+            :param self: Objeto analisador de la repo fdroid, application: Nombre de la app,
+            prnt: bool para ver si registra los archivos.
+            :return: null. Se imprime un archivo de texto con los resultados
+        """
+        dependencies = application.getDependencies()
+        apps = self.database.appsWithDeps(dependencies)
+
+        returnRules = []
+
+        if prnt: f = open("generatedRulesFor_" + application.getName() + "_dependencies.txt", "w")
+
+        compRules = []
+        appsWithDep = len(apps)
+
+        for app in apps:
+            rulesAndComp = AppAnalyser(app).rulesForDepInApp(dep)
+            rules = rulesAndComp[0]
+            compRules.extend(rulesAndComp[1])
+
+            for rule in rules:
+                if rule not in returnRules:
+                    returnRules.append(rule)
+                    if prnt: f.write("-" + rule + "\n")
+
+        rulesTimesUesed = dict.fromkeys(compRules, 0)
+
+        for rule in compRules:
+            rulesTimesUesed[rule] += 1
+
+        compRulesSorted = {k: v for k, v in sorted(rulesTimesUesed.items(), key=lambda item: item[1], reverse=True)}
+
+        for key in compRulesSorted:
+            frec = compRulesSorted[key]
+            perc = (frec/appsWithDep)*100
+
+            if perc >= percentage:
+                returnRules.append(key)
+
+        if prnt: f.close()
+        return returnRules
 
 class FDroidAnalyser:
     """
@@ -84,7 +149,6 @@ class FDroidAnalyser:
 
     def __init__(self, fdroid: FDroid):
         self.repo = fdroid
-
 
     def distinctRulesPerDep(self):
         """
@@ -114,8 +178,6 @@ class FDroidAnalyser:
         plt.tight_layout()
         plt.show()
 
-
-
     def numberOfRules(self):
         """
             Grafica el numero de reglas por App.
@@ -137,7 +199,6 @@ class FDroidAnalyser:
         plt.title("Number of Rules per App", loc='center', wrap=True, pad=2)
         plt.show()
 
-
     def obfVsSinObf(self):
         """
             Visualizacion de la cantidad de apps con y sin ofuscación.
@@ -148,7 +209,6 @@ class FDroidAnalyser:
                 labels=labels, autopct='%1.1f%%', shadow=True, startangle=90)
         plt.axis('equal')
         plt.show()
-
 
     def obfWithDontObf(self):
         """
@@ -164,7 +224,6 @@ class FDroidAnalyser:
                 labels=labels, autopct='%1.1f%%', shadow=True, startangle=90)
         plt.axis('equal')
         plt.show()
-
 
     def dependenciesHistogram(self):
         """
@@ -186,7 +245,6 @@ class FDroidAnalyser:
         plt.title("Number of Dependencies per App", loc='center', wrap=True, pad=2)
         plt.show()
 
-
     def depRuleHistogram(self):
         """
             Histograma de la cantidad de reglas por dependencias por app.
@@ -197,7 +255,7 @@ class FDroidAnalyser:
         for app in self.repo.obfuscatedApps():
             analyser = AppAnalyser(app)
             for dep in app.getDependencies():
-                numberOfRules.append(len(analyser.rulesForDepInApp(dep)))
+                numberOfRules.append(len(analyser.rulesForDepInApp(dep)[0]))
 
         plt.style.use('ggplot')
         plt.hist(numberOfRules, histtype="bar", bins=range(min(numberOfRules) + 1, 46, 1), color='#0504aa',
@@ -210,7 +268,6 @@ class FDroidAnalyser:
         plt.ylabel("Dependencies")
         plt.title("Number of Rules per Dependency on an App", loc='center', wrap=True, pad=2)
         plt.show()
-
 
     """
     def repeatedRulesPerImport(self, times: int):
@@ -318,7 +375,7 @@ class FDroidAnalyser:
 
             deps = app.getDependencies()
             for dep in deps:
-                depRules.append(appAn.rulesForDepInApp(dep))
+                depRules.append(appAn.rulesForDepInApp(dep)[0])
                 totalDeps.append(dep)
 
         depsRulesUsed = dict.fromkeys(totalDeps, 0)
@@ -354,7 +411,7 @@ class FDroidAnalyser:
         f.write("App\t\t\tNumber of Rules\n")
 
         for app in ret:
-            rulesForDep = AppAnalyser(app).rulesForDepInApp(dep)
+            rulesForDep = AppAnalyser(app).rulesForDepInApp(dep)[0]
             f.write(app.getName()+"\t\t\t"+str(len(rulesForDep))+"\n")
         f.close()
 
@@ -376,7 +433,7 @@ class FDroidAnalyser:
                 continue
             elif dep in app.getDependencies():
 
-                rules = AppAnalyser(app).rulesForDepInApp(dep)
+                rules = AppAnalyser(app).rulesForDepInApp(dep)[0]
                 if len(rules) > 0 and prnt: f.write("# " + app.name + "\n")
                 for rule in rules:
                     if rule not in returnRules:
@@ -386,7 +443,7 @@ class FDroidAnalyser:
         return returnRules
 
 
-    def rulesForAllDepsExcludingApp(self, application: App, prnt=False):
+    def rulesForAllDepsExcludingApp(self, application: App, percentage = 25, prnt=False):
         """
             Entrega todas las reglas para todas las dependencias de una app excluyendo las reglas de la app determinada.
 
@@ -402,21 +459,45 @@ class FDroidAnalyser:
 
         dependencies = application.getDependencies()
 
+        compRules = []
+        appsWithDep = 0
+
         for app in apps:
             if app.getName() == application.getName():
                 continue
             else:
                 for dep in dependencies:
                     if dep in app.getDependencies():
-                        rules = AppAnalyser(app).rulesForDepInApp(dep)
+
+                        appsWithDep += 1
+
+                        rulesAndComp = AppAnalyser(app).rulesForDepInApp(dep)
+                        rules = rulesAndComp[0]
+                        compRules.extend(rulesAndComp[1])
+
                         for rule in rules:
                             if rule not in returnRules:
                                 returnRules.append(rule)
                                 if prnt: f.write("-" + rule + "\n")
+
+        rulesTimesUesed = dict.fromkeys(compRules, 0)
+
+        for rule in compRules:
+            rulesTimesUesed[rule] += 1
+
+        compRulesSorted = {k: v for k, v in sorted(rulesTimesUesed.items(), key=lambda item: item[1], reverse=True)}
+
+        for key in compRulesSorted:
+            frec = compRulesSorted[key]
+            perc = (frec/appsWithDep)*100
+
+            if perc >= percentage:
+                returnRules.append(key)
+
         if prnt: f.close()
         return returnRules
 
-    def rulesForAllDepsList(self, apps: [App], prnt=False):
+    def rulesForAllDepsList(self, apps: [App], percentage = 25, prnt=False):
         """
             Entrega las reglas para las dependencias de una lista de aplicaciones.
 
@@ -427,6 +508,6 @@ class FDroidAnalyser:
         totalRules = []
 
         for app in apps:
-            totalRules.append(self.rulesForAllDepsExcludingApp(app, prnt))
+            totalRules.append(self.rulesForAllDepsExcludingApp(app, percentage, prnt))
 
         return totalRules
