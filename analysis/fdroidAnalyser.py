@@ -2,6 +2,7 @@ from classes.AppClass import *
 import re
 import collections
 from classes.FDroidClass import FDroid
+from classes.DBConnect import DBConnect
 from pprint import pprint
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,7 +34,7 @@ class AppAnalyser:
         for im in imports:
             if dep in im:
                 imAAgregar = im.split(".")[-1]
-                if imAAgregar == "*":
+                if imAAgregar == "*" or imAAgregar == "**":
                     imAAgregar = im.split(".")[-2]
                 relatedImports.append(imAAgregar)
 
@@ -89,6 +90,55 @@ class AppAnalyser:
         return rulesForImp
 """
 
+
+class DataBaseAnalyser:
+    def __init__(self, database: DBConnect):
+        self.database = database
+
+    def rulesForAllDepsExcludingApp(self, application: App, percentage = 25, prnt=False):
+        """
+            Entrega todas las reglas para todas las dependencias de una app excluyendo las reglas de la app determinada.
+
+            :param self: Objeto analisador de la repo fdroid, application: Nombre de la app,
+            prnt: bool para ver si registra los archivos.
+            :return: null. Se imprime un archivo de texto con los resultados
+        """
+        dependencies = application.getDependencies()
+        apps = self.database.appsWithDeps(dependencies)
+
+        returnRules = []
+
+        if prnt: f = open("generatedRulesFor_" + application.getName() + "_dependencies.txt", "w")
+
+        compRules = []
+        appsWithDep = len(apps)
+
+        for app in apps:
+            rulesAndComp = AppAnalyser(app).rulesForDepInApp(dep)
+            rules = rulesAndComp[0]
+            compRules.extend(rulesAndComp[1])
+
+            for rule in rules:
+                if rule not in returnRules:
+                    returnRules.append(rule)
+                    if prnt: f.write("-" + rule + "\n")
+
+        rulesTimesUesed = dict.fromkeys(compRules, 0)
+
+        for rule in compRules:
+            rulesTimesUesed[rule] += 1
+
+        compRulesSorted = {k: v for k, v in sorted(rulesTimesUesed.items(), key=lambda item: item[1], reverse=True)}
+
+        for key in compRulesSorted:
+            frec = compRulesSorted[key]
+            perc = (frec/appsWithDep)*100
+
+            if perc >= percentage:
+                returnRules.append(key)
+
+        if prnt: f.close()
+        return returnRules
 
 class FDroidAnalyser:
     """
