@@ -1,9 +1,8 @@
 import os
 import random
 from alive_progress import alive_bar
-from classes.AppClass import App
+from classes.Aplication import App
 from classes.DBConnect import *
-from getpass import getpass
 
 
 class FDroid:
@@ -18,10 +17,8 @@ class FDroid:
         self.appsNoOfuscadas = []
         self.appsOfuscadasSinDontOf = []
 
-        user = input("Enter database user: ")
-        pswd = getpass("Enter database password: ")
-
-        self.base = DBConnect(user, pswd)
+        if save:
+            self.base = DBConnect()
 
         with alive_bar(len(directories)) as bar:
             for item in directories:
@@ -31,12 +28,15 @@ class FDroid:
                 self.apps.append(app)
 
                 if app.isObfuscated():
-                    if save: app.saveInDB(self.base)
+                    if save:
+                        app.saveInDB(self.base)
                     self.appsOfuscadas.append(app)
                     if not app.dontObfuscateRule:
                         self.appsOfuscadasSinDontOf.append(app)
                 else:
                     self.appsNoOfuscadas.append(app)
+        if save:
+            self.base.close()
 
     def initFromList(self, appList):
         for app in appList:

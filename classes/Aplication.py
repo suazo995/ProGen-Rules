@@ -22,6 +22,7 @@ class App:
         self.dontObfuscateRule = False
         self.dontObfuscateFiles = []
         self.classes = []
+        self.proguardRuleFiles = []
 
         # se ve si esta activado proguard y donde estan los archivos de reglas
         isObfGradle = self.isAppObfuscatedG(self.buildGradleFiles)
@@ -36,12 +37,9 @@ class App:
             for ruleFileName in (isObfProp + isObfGradle):
                 proguardRulePaths.extend(self.findFilePaths(path, ruleFileName))
 
-            self.proguardRuleFiles = []
-            self.rules = []
             for pth in proguardRulePaths:
                 file = ProGuard(pth, self)
                 self.proguardRuleFiles.append(file)
-                self.rules.extend(file.rules.rules)
 
             javaClassesPaths = self.findFilePaths(path, "*.java")
             ktClassesPaths = self.findFilePaths(path, "*.kt")
@@ -55,8 +53,9 @@ class App:
 
     def getRules(self):
         retRules = []
-        for pg in self.proguardRuleFiles:
+        for pg in self.getPgFiles():
             retRules.extend(pg.getRules())
+        retRules = list(set(retRules))
         return retRules
 
     def getClasses(self):
@@ -224,7 +223,7 @@ class App:
                         elif 'files' in ln:
                             dependencies.extend(re.findall("/(.*?)(?:'|\")", ln))
                         elif 'project' in ln:
-                            dependencies.extend(re.findall(":(.*?)(?:'|\")", ln))
+                            dependencies.extend(re.findall("(?:':|\":)(.*)(?:'|\")", ln))
                         elif 'Libraries' in ln:
                             dependencies.extend(re.findall("\.([-a-zA-Z0-9_]*)\)?", ln))
                         elif 'name:' in ln and 'group:' in ln:
@@ -247,6 +246,70 @@ class App:
         db.saveDeps(appId, self.getDependencies())
         db.saveRules(appId, self.getRules())
         db.saveImports(appId, self.getAllImports())
+
+    def rulesForDepInApp(self, dep, prnt=False, f=None):
+        """
+            Entrega las reglas para una dependencia en específico.
+
+            :param self: Objeto analisador de una app, dep: Nombre de la dependencia.
+            :return: lista de reglas atinentes a la dependencia.
+        """
+
+        imports = self.getAllImports()
+        relatedImports = []
+
+        for im in imports:
+            if dep in im:
+                imAAgregar = im.split(".")[-1]
+                if imAAgregar == "*" or imAAgregar == "**":
+                    imAAgregar = im.split(".")[-2]
+                if imAAgregar not in relatedImports:
+                    relatedImports.append(imAAgregar)
+
+        rulesForThisDep = []
+        compRules = []
+
+        for pg in self.getPgFiles():
+            lastRuleForDepSeenIndx = -1
+
+            for idx, rule in enumerate(pg.getRules()):
+                if dep in rule:
+                    if prnt: f.write("-" + rule + "\n")
+                    rulesForThisDep.append(rule)
+
+                    lastRuleForDepSeenIndx = idx
+                else:
+                    if lastRuleForDepSeenIndx != -1 and (idx - lastRuleForDepSeenIndx) <= 3:
+                        if prnt: f.write("-" + rule + "\t# por proximidad" + "\n")
+                        rulesForThisDep.append(rule)
+                    for im in relatedImports:
+                        if im in rule:
+                            if prnt: f.write("-" + rule + "\t# del import: " + im + "\n")
+                            if rule not in rulesForThisDep:
+                                rulesForThisDep.append(rule)
+                        else:
+                            if (rule, dep) not in compRules:
+                                compRules.append((rule, dep))
+
+        return [rulesForThisDep, compRules]
+
+    def rulesForDeps(self):
+        """
+            Entrega las reglas para todas las dependencias de la app.
+
+            :param self: Objeto analisador de una app.
+            :return: lista de reglas atinentes a las dependencias de la app.
+        """
+        rulesForDeps = []
+
+        for dep in self.dependencies:
+            rulesForDeps.extend(self.rulesForDepInApp(dep)[0])
+
+        return rulesForDeps
+
+    def appendPgFile(self, fileToInclude):
+        pgFile = ProGuard(fileToInclude, self)
+        self.proguardRuleFiles.append(pgFile)
 
 
 class Rules:
@@ -274,21 +337,35 @@ class ProGuard:
     # recive: path de la aplicacion y objeto aplicacion
     #
     # retorna: reglas de ofuscacion
-    def findFileRules(self, path, app):
+    def findFileRules(self, path: str, app: App):
+
+        rulesToFilter = ['dontskipnonpubliclibraryclasses', 'forceprocessing', 'dontshrink', 'dontoptimize',
+                         'optimizations', 'optimizationpasses', 'assumenosideeffects', 'assumenoexternalsideeffects',
+                         'assumenoescapingparameters', 'assumenoexternalreturnvalues', 'assumevalues',
+                         'allowaccessmodification', 'mergeinterfacesaggressively', 'printmapping', 'applymapping',
+                         'obfuscationdictionary', 'classobfuscationdictionary', 'packageobfuscationdictionary',
+                         'overloadaggressively', 'useuniqueclassmembernames', 'dontusemixedcaseclassnames',
+                         'flattenpackagehierarchy', 'repackageclasses', 'dontpreverify', 'microedition', 'verbose',
+                         'ignorewarnings', 'printconfiguration', 'dump', 'addconfigurationdebugging']
         try:
             with open(path, 'r') as file:
                 ret = []
                 opened_rule = re.sub(r'(?m)^\s*#.*\n?', '', file.read())
                 opened_rule = ' '.join(opened_rule.split())
-                opened_rule = opened_rule.split("-")[1:]
-                pattern = re.compile('[^a-zA-Z0-9_*.,;<>(){}@ -]+')
+                opened_rule = re.split("^-| -", opened_rule)[1:]
+                #opened_rule = opened_rule.split("-")[1:]
+                pattern = re.compile('[^a-zA-Z0-9_*.,;<>(){}@/!$ -]+')
                 if opened_rule:
                     for rule in opened_rule:
                         if "dontobfuscate" in rule:
                             app.dontObfuscateRule = True
                             app.dontObfuscateFiles.append(path)
-                            return []
-                        ret.append(pattern.sub('', rule.replace("\\n", "").replace("\\r", "")))
+                        elif "include " in rule:
+                            fileToInclude = rule.split()[1]
+                            pathToInclude = path.rsplit('/', 1)[0]+'/'+fileToInclude
+                            app.appendPgFile(pathToInclude)
+                        elif rule.split()[0] not in rulesToFilter:
+                            ret.append(pattern.sub('', rule.replace("\\n", "").replace("\\r", "")).rstrip())
             return ret
         except UnicodeDecodeError:
             print('*************************  unicode decode error: no se puede leer las reglas\n\n' + path + '\n\n')
@@ -323,7 +400,7 @@ class AppClass:
                         ret.append(im)
             return ret
         except UnicodeDecodeError:
-            print('*************************  unicode decode error: no se puede leer las reglas')
+            print('*************************  unicode decode error: no se puede leer ', path)
             return []
 
     def getImports(self):

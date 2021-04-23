@@ -1,18 +1,18 @@
 from unittest import TestCase
-from classes.AppClass import *
+from classes.Aplication import *
 
 
 class SetUpApp(TestCase):
 
     def setUp(self):
-        self.obApp1 = App("/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/SimpleFileManagerPro")
-        self.obApp2 = App("/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/SimpleExplorer")
-        self.obApp3 = App("/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/GameDealz/")
-        self.obApp4 = App("/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/BatteryFu")
+        self.obApp1 = App("/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/SimpleFileManagerPro")
+        self.obApp2 = App("/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/SimpleExplorer")
+        self.obApp3 = App("/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/GameDealz/")
+        self.obApp4 = App("/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/BatteryFu")
 
-        self.unObApp1 = App("/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/CardGameScores")
-        self.unObApp2 = App("/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/LocalGsmNlpBackend")
-        self.unObApp3 = App("/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/TheItalianSaid")
+        self.unObApp1 = App("/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/CardGameScores")
+        self.unObApp2 = App("/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/LocalGsmNlpBackend")
+        self.unObApp3 = App("/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/TheItalianSaid")
 
 
 class TestApp(SetUpApp):
@@ -45,24 +45,24 @@ class TestApp(SetUpApp):
         for pg in self.obApp2.proguardRuleFiles:
             files.append(pg.path)
         expected = [
-            "/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/SimpleExplorer/com.dnielfe.manager_67_src.tar.gz/explorer/proguard-android.txt"]
+            "/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/SimpleExplorer/com.dnielfe.manager_67_src.tar.gz/explorer/proguard-android.txt"]
 
         self.assertEqual(files, expected)
 
         files2 = []
         for pg in self.obApp3.proguardRuleFiles:
             files2.append(pg.path)
-        expected2 = ['/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/app/proguard-rules.pro',
- '/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/commonproviders/proguard-rules.pro',
- '/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/data/proguard-rules.pro',
- '/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/domain/proguard-rules.pro',
- '/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/network/proguard-rules.pro',
- '/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/workers/proguard-rules.pro',
- '/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/app/proguard-rules/coroutines.pro',
- '/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/app/proguard-rules/moshi-kotlin.pro',
- '/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/app/proguard-rules/moshi.pro',
- '/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/app/proguard-rules/okhttp3.pro',
- '/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/app/proguard-rules/okio.pro']
+        expected2 = ['/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/app/proguard-rules.pro',
+ '/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/commonproviders/proguard-rules.pro',
+ '/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/data/proguard-rules.pro',
+ '/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/domain/proguard-rules.pro',
+ '/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/network/proguard-rules.pro',
+ '/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/workers/proguard-rules.pro',
+ '/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/app/proguard-rules/coroutines.pro',
+ '/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/app/proguard-rules/moshi-kotlin.pro',
+ '/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/app/proguard-rules/moshi.pro',
+ '/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/app/proguard-rules/okhttp3.pro',
+ '/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/GameDealz/de.r4md4c.gamedealz_14_src.tar.gz/app/proguard-rules/okio.pro']
 
         self.assertEqual(files2, expected2)
 
@@ -71,8 +71,8 @@ class TestApp(SetUpApp):
         prpertiesPath = self.obApp1.propertiesPaths
 
         gradleExpected = [
-            "/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/SimpleFileManagerPro/com.simplemobiletools.filemanager.pro_90_src.tar.gz/build.gradle",
-            "/Volumes/Box1/JPS/intTrabajoTitulo/work/fdroidapps/SimpleFileManagerPro/com.simplemobiletools.filemanager.pro_90_src.tar.gz/app/build.gradle"]
+            "/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/SimpleFileManagerPro/com.simplemobiletools.filemanager.pro_90_src.tar.gz/build.gradle",
+            "/Volumes/WanShiTong/Archive/UChile/Título/work/fdroidapps/SimpleFileManagerPro/com.simplemobiletools.filemanager.pro_90_src.tar.gz/app/build.gradle"]
         propertiesExpected = []
 
         self.assertEqual(gradlePath, gradleExpected)

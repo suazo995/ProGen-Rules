@@ -1,4 +1,4 @@
-from classes.AppClass import *
+from classes.Aplication import *
 import re
 import collections
 from classes.FDroidClass import FDroid
@@ -9,64 +9,7 @@ import numpy as np
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
 
-class AppAnalyser:
-    """
-        Clase que analisa una aplicación dada
 
-        :param app: un objeto App.
-
-    """
-
-    def __init__(self, app: App):
-        self.app = app
-
-    def rulesForDepInApp(self, dep):
-        """
-            Entrega las reglas para una dependencia en específico.
-
-            :param self: Objeto analisador de una app, dep: Nombre de la dependencia.
-            :return: lista de reglas atinentes a la dependencia.
-        """
-
-        imports = self.app.getAllImports()
-        relatedImports = []
-
-        for im in imports:
-            if dep in im:
-                imAAgregar = im.split(".")[-1]
-                if imAAgregar == "*" or imAAgregar == "**":
-                    imAAgregar = im.split(".")[-2]
-                relatedImports.append(imAAgregar)
-
-        rulesForThisDep = []
-        compRules = []
-
-        for pg in self.app.proguardRuleFiles:
-            for rule in pg.getRules():
-                if dep in rule:
-                    rulesForThisDep.append(rule)
-                else:
-                    for im in relatedImports:
-                        if im in rule:
-                            rulesForThisDep.append(rule)
-                        else:
-                            compRules.append(rule)
-
-        return [rulesForThisDep, compRules]
-
-    def rulesForDeps(self):
-        """
-            Entrega las reglas para todas las dependencias de la app.
-
-            :param self: Objeto analisador de una app.
-            :return: lista de reglas atinentes a las dependencias de la app.
-        """
-        rulesForDeps = []
-
-        for dep in self.app.dependencies:
-            rulesForDeps.extend(self.rulesForDepInApp(dep)[0])
-
-        return rulesForDeps
 """
     def rulesForImports(self):
         rulesForImp = []
@@ -104,41 +47,94 @@ class DataBaseAnalyser:
             :return: null. Se imprime un archivo de texto con los resultados
         """
         dependencies = application.getDependencies()
-        apps = self.database.appsWithDeps(dependencies)
+        appsAndRules = self.database.getAppsWithDeps(dependencies)
+
+        if prnt:
+            path = "resultsDB/" + application.getName()
+            if not os.path.exists(path):
+                os.makedirs(path)
+            f = open(path + "/RulesFor_" + application.getName() + "_dependencies.pro", "w")
+        else:
+            f = None
 
         returnRules = []
-
-        if prnt: f = open("generatedRulesFor_" + application.getName() + "_dependencies.txt", "w")
-
         compRules = []
-        appsWithDep = len(apps)
+        appsWithDep = dict.fromkeys(dependencies, 0)
 
-        for app in apps:
-            rulesAndComp = AppAnalyser(app).rulesForDepInApp(dep)
-            rules = rulesAndComp[0]
-            compRules.extend(rulesAndComp[1])
+        for tuple in appsAndRules:
+            app = tuple[0]
+            appDeps = tuple[1].split('#')
+            rules = tuple[2].split('#')
+            imports = tuple[3].split('#')
 
-            for rule in rules:
-                if rule not in returnRules:
-                    returnRules.append(rule)
-                    if prnt: f.write("-" + rule + "\n")
+            lastRuleForDepSeenIndx = -1
 
-        rulesTimesUesed = dict.fromkeys(compRules, 0)
+            for depen in appDeps:
+                if depen in appsWithDep.keys():
+                    appsWithDep[depen] += 1
+                else:
+                    print(app, depen)
 
-        for rule in compRules:
-            rulesTimesUesed[rule] += 1
+            if app == application.getName():
+                continue
+            else:
+                if prnt and rules:
+                    f.write("\n# Rules from App: " + app + "\n")
 
-        compRulesSorted = {k: v for k, v in sorted(rulesTimesUesed.items(), key=lambda item: item[1], reverse=True)}
+                for idx, rule in enumerate(rules):
+                    for dep in appDeps:
+                        if dep in dependencies:
+                            if dep in rule:
+                                if prnt: f.write("-" + rule + "\t# por " + dep + "\n")
+                                if rule not in returnRules:
+                                    returnRules.append(rule)
+                                lastRuleForDepSeenIndx = idx
+                                break
+
+                            elif rule not in returnRules:
+                                if lastRuleForDepSeenIndx != -1 and (idx - lastRuleForDepSeenIndx) <= 3:
+                                    if prnt: f.write("-" + rule + "\t# por proximidad\n")
+                                    returnRules.append(rule)
+                                else:
+                                    for im in imports:
+
+                                        importEnd = im.split(".")[-1]
+                                        if importEnd == "*" or importEnd == "**" and im.split(".")[-2] != "":
+                                            importEnd = im.split(".")[-2]
+
+                                        if importEnd in rule:
+                                            if prnt: f.write("-" + rule + "\t# del import: " + im + "\n")
+                                            returnRules.append(rule)
+                                            break
+                                        else:
+                                            compRules.append((rule, dep))
+                                            break
+
+        rulesTimesUsed = dict.fromkeys(compRules, 0)
+
+        for tuple in compRules:
+            rulesTimesUsed[tuple] += 1
+
+        compRulesSorted = {k: v for k, v in sorted(rulesTimesUsed.items(), key=lambda item: item[1], reverse=True)}
+
+        if prnt: f.write("\n# Reglas Acompañantes (presentes en > " + str(percentage) + " )" + "\n")
 
         for key in compRulesSorted:
-            frec = compRulesSorted[key]
-            perc = (frec/appsWithDep)*100
+            rule = key[0]
+            dep = key[1]
 
-            if perc >= percentage:
-                returnRules.append(key)
+
+            frec = compRulesSorted[key]
+            perc = (frec/appsWithDep[dep])*100
+
+            if perc >= percentage and rule not in returnRules:
+                if prnt: f.write("-" + rule + "\t # presente en  " + str(round(perc, 2)) + "%" + "\n")
+                returnRules.append(rule)
 
         if prnt: f.close()
         return returnRules
+
+
 
 class FDroidAnalyser:
     """
@@ -158,7 +154,7 @@ class FDroidAnalyser:
         ret = {}
 
         for app in apps:
-            for dnr in AppAnalyser(app).rulesForDeps():
+            for dnr in app.rulesForDeps():
                 for rule in dnr[1]:
                     try:
                         if rule not in ret[dnr[0]]:
@@ -253,7 +249,7 @@ class FDroidAnalyser:
         numberOfRules = []
 
         for app in self.repo.obfuscatedApps():
-            analyser = AppAnalyser(app)
+            analyser = app
             for dep in app.getDependencies():
                 numberOfRules.append(len(analyser.rulesForDepInApp(dep)[0]))
 
@@ -275,7 +271,7 @@ class FDroidAnalyser:
         rulesForEachImort = []
 
         for app in self.repo.appsOfuscadas:
-            analyser = AppAnalyser(app)
+            analyser = app
 
             rulesForEachImort.extend(analyser.rulesForImports())
 
@@ -338,7 +334,7 @@ class FDroidAnalyser:
         totalDeps = []
 
         for app in apps:
-            appAn = AppAnalyser(app)
+            appAn = app
             deps = app.getDependencies()
             for dep in deps:
                 if "'org.bouncycastle', name" in dep:
@@ -371,7 +367,7 @@ class FDroidAnalyser:
         depRules = []
 
         for app in apps:
-            appAn = AppAnalyser(app)
+            appAn = app
 
             deps = app.getDependencies()
             for dep in deps:
@@ -411,7 +407,7 @@ class FDroidAnalyser:
         f.write("App\t\t\tNumber of Rules\n")
 
         for app in ret:
-            rulesForDep = AppAnalyser(app).rulesForDepInApp(dep)[0]
+            rulesForDep = app.rulesForDepInApp(dep)[0]
             f.write(app.getName()+"\t\t\t"+str(len(rulesForDep))+"\n")
         f.close()
 
@@ -433,7 +429,7 @@ class FDroidAnalyser:
                 continue
             elif dep in app.getDependencies():
 
-                rules = AppAnalyser(app).rulesForDepInApp(dep)[0]
+                rules = app.rulesForDepInApp(dep)[0]
                 if len(rules) > 0 and prnt: f.write("# " + app.name + "\n")
                 for rule in rules:
                     if rule not in returnRules:
@@ -455,44 +451,59 @@ class FDroidAnalyser:
 
         returnRules = []
 
-        if prnt: f = open("generatedRulesFor_" + application.getName() + "_dependencies.txt", "w")
+        if prnt:
+            path = "results/" + application.getName()
+            if not os.path.exists(path):
+                os.makedirs(path)
+            f = open(path + "/RulesFor_" + application.getName() + "_dependencies.pro", "w")
+        else:
+            f = None
 
         dependencies = application.getDependencies()
 
         compRules = []
-        appsWithDep = 0
+        appsWithDep = dict.fromkeys(dependencies, 0)
 
-        for app in apps:
-            if app.getName() == application.getName():
-                continue
-            else:
-                for dep in dependencies:
+        for dep in dependencies:
+            for app in apps:
+                if app.getName() == application.getName():
+                    continue
+                else:
                     if dep in app.getDependencies():
+                        if prnt:
+                            if app.rulesForDepInApp(dep)[0]:
+                                f.write("\n# Rules for dep: " + dep + ", in App: " + app.getName() + "\n")
 
-                        appsWithDep += 1
+                        appsWithDep[dep] += 1
 
-                        rulesAndComp = AppAnalyser(app).rulesForDepInApp(dep)
+                        rulesAndComp = app.rulesForDepInApp(dep, prnt, f)
                         rules = rulesAndComp[0]
                         compRules.extend(rulesAndComp[1])
 
                         for rule in rules:
                             if rule not in returnRules:
                                 returnRules.append(rule)
-                                if prnt: f.write("-" + rule + "\n")
 
-        rulesTimesUesed = dict.fromkeys(compRules, 0)
+        rulesTimesUsed = dict.fromkeys(compRules, 0)
 
-        for rule in compRules:
-            rulesTimesUesed[rule] += 1
+        for tuple in compRules:
+            rulesTimesUsed[tuple] += 1
 
-        compRulesSorted = {k: v for k, v in sorted(rulesTimesUesed.items(), key=lambda item: item[1], reverse=True)}
+        compRulesSorted = {k: v for k, v in sorted(rulesTimesUsed.items(), key=lambda item: item[1], reverse=True)}
+
+        if prnt: f.write("\n# Reglas Acompañantes (presentes en > " + str(percentage) + " )" + "\n")
 
         for key in compRulesSorted:
-            frec = compRulesSorted[key]
-            perc = (frec/appsWithDep)*100
+            rule = key[0]
+            dep = key[1]
 
-            if perc >= percentage:
-                returnRules.append(key)
+
+            frec = compRulesSorted[key]
+            perc = (frec/appsWithDep[dep])*100
+
+            if perc >= percentage and rule not in returnRules:
+                if prnt: f.write("-" + rule + "\t # presente en  " + str(round(perc, 2)) + "%" + "\n")
+                returnRules.append(rule)
 
         if prnt: f.close()
         return returnRules
