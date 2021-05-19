@@ -1,9 +1,8 @@
 import glob
 import os
 import re
-import json
-from json import JSONEncoder
 from classes.DBConnect import DBConnect
+from pygtrie import StringTrie
 
 
 class App:
@@ -23,6 +22,7 @@ class App:
         self.dontObfuscateFiles = []
         self.classes = []
         self.proguardRuleFiles = []
+        self.packageLocations = StringTrie(separator='.')
 
         # se ve si esta activado proguard y donde estan los archivos de reglas
         isObfGradle = self.isAppObfuscatedG(self.buildGradleFiles)
@@ -32,7 +32,18 @@ class App:
         self.isObf = (len(isObfGradle) != 0) or (len(isObfProp) != 0)
 
         if self.isObf:
-            # si esta ofuscado se buscan las reglas y los onmbres de las clases
+            # si esta ofuscado se buscan las reglas y los nombres de las clases
+
+            javaClassesPaths = self.findFilePaths(path, "*.java")
+            ktClassesPaths = self.findFilePaths(path, "*.kt")
+
+            for pth in javaClassesPaths:
+                if 'src/main/java/' in pth:
+                    self.classes.append(JavaClass(pth, self))
+            for pth in ktClassesPaths:
+                if 'src/main/java/' in pth:
+                    self.classes.append(KtClass(pth, self))
+
             proguardRulePaths = []
             for ruleFileName in (isObfProp + isObfGradle):
                 proguardRulePaths.extend(self.findFilePaths(path, ruleFileName))
@@ -40,14 +51,6 @@ class App:
             for pth in proguardRulePaths:
                 file = ProGuard(pth, self)
                 self.proguardRuleFiles.append(file)
-
-            javaClassesPaths = self.findFilePaths(path, "*.java")
-            ktClassesPaths = self.findFilePaths(path, "*.kt")
-
-            for pth in javaClassesPaths:
-                self.classes.append(JavaClass(pth))
-            for pth in ktClassesPaths:
-                self.classes.append(KtClass(pth))
         # se registran las dependencias
         self.dependencies = self.extractDependencies(self.buildGradleFiles)
 
@@ -207,7 +210,7 @@ class App:
                     if deps:
                         if '{' in ln:
                             count_bracket += 1
-                        if 'exclude' in ln:
+                        if 'exclude' in ln and 'module' in ln:
                             continue
                         elif 'fileTree' in ln:
                             if 'dir' in ln:
@@ -223,7 +226,7 @@ class App:
                         elif 'files' in ln:
                             dependencies.extend(re.findall("/(.*?)(?:'|\")", ln))
                         elif 'project' in ln:
-                            dependencies.extend(re.findall("(?:':|\":)(.*)(?:'|\")", ln))
+                            dependencies.extend(re.findall("(?:':|\":)(.*?)(?:'|\")", ln))
                         elif 'Libraries' in ln:
                             dependencies.extend(re.findall("\.([-a-zA-Z0-9_]*)\)?", ln))
                         elif 'name:' in ln and 'group:' in ln:
@@ -232,13 +235,13 @@ class App:
                             dependencies.extend(re.findall(":(.*?):", ln))
                         if '}' in ln:
                             if count_bracket == 0:
-                                break
+                                deps = False
                             else:
                                 count_bracket -= 1
 
         ret = list(dict.fromkeys(dependencies).keys())
         if ret is None:
-            return[]
+            return []
         return ret
 
     def saveInDB(self, db: DBConnect):
@@ -311,11 +314,68 @@ class App:
         pgFile = ProGuard(fileToInclude, self)
         self.proguardRuleFiles.append(pgFile)
 
+    def insertClassPackageLocation(self, packageLocation, className):
+        trie = self.packageLocations
+
+        if packageLocation not in trie.keys():
+            trie[packageLocation] = [className]
+        else:
+            temp = trie.pop(packageLocation)
+            temp.append(className)
+            trie[packageLocation] = temp
+
+        self.packageLocations = trie
+
+    def getPackageLocations(self):
+        return self.packageLocations
+
+    def isInPackageStructure(self, classLocationReference):
+        separateClassAndElement = classLocationReference.rsplit('.', 1)
+
+        if len(separateClassAndElement) > 1:
+            locationReference = separateClassAndElement[0]
+            classReference = separateClassAndElement[1]
+
+            packageLocationsTrie = self.getPackageLocations()
+
+            if classReference == '**' and packageLocationsTrie.has_subtrie(locationReference):
+                return True
+
+            elif packageLocationsTrie.has_key(locationReference):
+                return True
+        else:
+            return False
+
 
 class Rules:
 
     def __init__(self, rules):
         self.rules = rules
+
+
+def isolate_class_specifications(rule):
+    class_specification_rules = ['keep', 'keepclassmembers', 'keepclasseswithmembers', 'keepnames',
+                                 'keepclassmembernames', 'keepclasseswithmembernames', 'dontwarn', 'dontnote']
+    if " extends " in rule or " implements " in rule:
+        classAndExtended = rule.split(' extends ')
+        if len(classAndExtended) == 1:
+            classAndExtended = rule.split(' implements ')
+        if '@' in classAndExtended[1]:
+            classBeingExtended = classAndExtended[1].split(' ', 2)[1]
+        else:
+            classBeingExtended = classAndExtended[1].split(' ', 1)[0]
+        extendingClass = classAndExtended[0].rsplit(' ', 1)[-1]
+        return [extendingClass, classBeingExtended]
+
+    elif rule.split(' ', 1)[0] in class_specification_rules:
+        classLocationReference = rule.split(' {', 1)[0].rsplit(' ', 1)
+
+        if len(classLocationReference) < 2:
+            return []
+        classLocationReference = classLocationReference[1]
+
+        return [classLocationReference]
+    return []
 
 
 class ProGuard:
@@ -339,7 +399,8 @@ class ProGuard:
     # retorna: reglas de ofuscacion
     def findFileRules(self, path: str, app: App):
 
-        rulesToFilter = ['dontskipnonpubliclibraryclasses', 'forceprocessing', 'dontshrink', 'dontoptimize',
+        rulesToFilter = ['dontskipnonpubliclibraryclasses', 'skipnonpubliclibraryclasses',
+                         'forceprocessing', 'dontshrink', 'printusage', 'whyareyoukeeping', 'dontoptimize',
                          'optimizations', 'optimizationpasses', 'assumenosideeffects', 'assumenoexternalsideeffects',
                          'assumenoescapingparameters', 'assumenoexternalreturnvalues', 'assumevalues',
                          'allowaccessmodification', 'mergeinterfacesaggressively', 'printmapping', 'applymapping',
@@ -353,7 +414,7 @@ class ProGuard:
                 opened_rule = re.sub(r'(?m)^\s*#.*\n?', '', file.read())
                 opened_rule = ' '.join(opened_rule.split())
                 opened_rule = re.split("^-| -", opened_rule)[1:]
-                #opened_rule = opened_rule.split("-")[1:]
+                # opened_rule = opened_rule.split("-")[1:]
                 pattern = re.compile('[^a-zA-Z0-9_*.,;<>(){}@/!$ -]+')
                 if opened_rule:
                     for rule in opened_rule:
@@ -362,18 +423,40 @@ class ProGuard:
                             app.dontObfuscateFiles.append(path)
                         elif "include " in rule:
                             fileToInclude = rule.split()[1]
-                            pathToInclude = path.rsplit('/', 1)[0]+'/'+fileToInclude
+                            pathToInclude = path.rsplit('/', 1)[0] + '/' + fileToInclude
                             app.appendPgFile(pathToInclude)
                         elif rule.split()[0] not in rulesToFilter:
-                            ret.append(pattern.sub('', rule.replace("\\n", "").replace("\\r", "")).rstrip())
+                            rule = pattern.sub('', rule.replace("\\n", "").replace("\\r", "")).rstrip()
+
+                            if rule == "dontwarn":
+                                continue
+
+                            classSpecification = isolate_class_specifications(rule)
+                            lenClassSpec = len(classSpecification)
+
+                            if lenClassSpec == 2:
+                                extendingClass = classSpecification[0]
+                                classBeingExtended = classSpecification[1]
+                                if app.isInPackageStructure(extendingClass)\
+                                        or app.isInPackageStructure(classBeingExtended):
+                                    rule = rule + '## is app specific rule ' + app.getName()
+
+                            elif lenClassSpec == 1:
+                                classLocationReference = classSpecification[0]
+                                if (len(classLocationReference.split('.')) == 1
+                                    and classLocationReference.split('.')[0] == '**') \
+                                        or (len(classLocationReference.split('.')) == 2
+                                            and classLocationReference.split('.')[1] == '**'):
+                                    continue
+                                if app.isInPackageStructure(classLocationReference):
+                                    rule = rule + '## is app specific rule ' + app.getName()
+                            else:
+                                continue
+
+                            ret.append(rule)
             return ret
         except UnicodeDecodeError:
             print('*************************  unicode decode error: no se puede leer las reglas\n\n' + path + '\n\n')
-
-
-class CostumFileEncoder(JSONEncoder):
-    def default(self, o):
-        return o.__dict__
 
 
 class AppClass:
@@ -381,9 +464,11 @@ class AppClass:
     def __repr__(self):
         return self.name + " Class Object"
 
-    def __init__(self, path):
+    def __init__(self, path, app: App):
         self.name = path.split('/')[-1]
         self.path = path
+        self.packageLocation = '.'.join(self.path.split('src/main/java/')[1].split('/')[:-1])
+        app.insertClassPackageLocation(self.packageLocation, self.name)
         self.imports = []
 
     def findImports(self, path, imprt, flags):
@@ -409,12 +494,12 @@ class AppClass:
 
 class JavaClass(AppClass):
 
-    def __init__(self, path):
-        super().__init__(path)
+    def __init__(self, path, app):
+        super().__init__(path, app)
         self.imports = self.findImports(path, '^import(.*?);', lambda x: x.MULTILINE | x.DOTALL)
 
 
 class KtClass(AppClass):
-    def __init__(self, path):
-        super().__init__(path)
+    def __init__(self, path, app):
+        super().__init__(path, app)
         self.imports = self.findImports(path, '^import(.*?)$', lambda x: x.MULTILINE)

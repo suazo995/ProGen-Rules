@@ -63,20 +63,21 @@ class DataBaseAnalyser:
 
         for tuple in appsAndRules:
             app = tuple[0]
-            appDeps = tuple[1].split('#')
-            rules = tuple[2].split('#')
-            imports = tuple[3].split('#')
+            appDeps = tuple[1].split('%')
+            rules = tuple[2].split('%')
+            imports = tuple[3].split('%')
 
             lastRuleForDepSeenIndx = -1
 
-            for depen in appDeps:
-                if depen in appsWithDep.keys():
-                    appsWithDep[depen] += 1
-                else:
-                    print(app, depen)
-
             if app == application.getName():
                 continue
+
+            try:
+                for depen in appDeps:
+                    appsWithDep[depen] += 1
+            except KeyError:
+                print('oops')
+
             else:
                 if prnt and rules:
                     f.write("\n# Rules from App: " + app + "\n")
@@ -119,17 +120,28 @@ class DataBaseAnalyser:
 
         if prnt: f.write("\n# Reglas Acompañantes (presentes en > " + str(percentage) + " )" + "\n")
 
+        rulePerc = {}
+
         for key in compRulesSorted:
             rule = key[0]
             dep = key[1]
 
-
             frec = compRulesSorted[key]
             perc = (frec/appsWithDep[dep])*100
 
-            if perc >= percentage and rule not in returnRules:
-                if prnt: f.write("-" + rule + "\t # presente en  " + str(round(perc, 2)) + "%" + "\n")
-                returnRules.append(rule)
+            if rule in rulePerc.keys():
+                currentPerc = rulePerc[rule]
+                if perc > currentPerc:
+                    rulePerc[rule] = perc
+            elif perc >= percentage:
+                rulePerc[rule] = perc
+
+        for key in rulePerc:
+            rule = key
+            perc = rulePerc[key]
+            if prnt: f.write("-" + rule + "\t # presente en  " + str(round(perc, 2)) + "%" + "\n")
+            if rule not in returnRules:
+                returnRules.append(rule + "# presente en  " + str(round(perc, 2)) + "%")
 
         if prnt: f.close()
         return returnRules
@@ -493,17 +505,28 @@ class FDroidAnalyser:
 
         if prnt: f.write("\n# Reglas Acompañantes (presentes en > " + str(percentage) + " )" + "\n")
 
+        rulePerc = {}
+
         for key in compRulesSorted:
             rule = key[0]
             dep = key[1]
 
-
             frec = compRulesSorted[key]
             perc = (frec/appsWithDep[dep])*100
 
-            if perc >= percentage and rule not in returnRules:
-                if prnt: f.write("-" + rule + "\t # presente en  " + str(round(perc, 2)) + "%" + "\n")
-                returnRules.append(rule)
+            if rule in rulePerc.keys():
+                currentPerc = rulePerc[rule]
+                if perc > currentPerc:
+                    rulePerc[rule] = perc
+            elif perc >= percentage:
+                rulePerc[rule] = perc
+
+        for key in rulePerc:
+            rule = key
+            perc = rulePerc[key]
+            if prnt: f.write("-" + rule + "\t # presente en  " + str(round(perc, 2)) + "%" + "\n")
+            if rule not in returnRules:
+                returnRules.append(rule + "# presente en  " + str(round(perc, 2)) + "%")
 
         if prnt: f.close()
         return returnRules

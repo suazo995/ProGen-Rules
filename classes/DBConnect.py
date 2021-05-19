@@ -17,6 +17,10 @@ class DBConnect:
         )
         self.cursor = self.db.cursor()
 
+        sql = '''SET GLOBAL group_concat_max_len = 1000000;'''
+        self.cursor.execute(sql)  # ejecuto la consulta
+        self.db.commit()  # modifico la base de datos
+
     def close(self):
         self.db.close()
 
@@ -80,12 +84,12 @@ class DBConnect:
                 sqlAuxDeps = sqlAuxDeps + ")"
                 sqlAuxImports = sqlAuxImports + ")"
 
-        sql ='''SELECT A.nombre, A.dependencias, A.reglas, GROUP_CONCAT(import.imp SEPARATOR '#')
+        sql ='''SELECT A.nombre, A.dependencias, A.reglas, GROUP_CONCAT(import.imp SEPARATOR '%')
                 FROM
-                (SELECT app.nombre, app.id, app.dependencias, GROUP_CONCAT(regla.rule SEPARATOR '#') as reglas
+                (SELECT app.nombre, app.id, app.dependencias, GROUP_CONCAT(regla.rule SEPARATOR '%') as reglas
                 FROM 
                 (SELECT aplicacion.nombre as nombre, aplicacion.id as id, 
-                GROUP_CONCAT(dependencia.dep SEPARATOR '#') as dependencias
+                GROUP_CONCAT(dependencia.dep SEPARATOR '%') as dependencias
                 FROM 
                 aplicacion JOIN dependencia
                 WHERE dependencia.appId=aplicacion.id AND ''' + sqlAuxDeps + ''' GROUP BY aplicacion.id) as app 
