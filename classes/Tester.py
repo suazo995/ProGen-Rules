@@ -78,7 +78,8 @@ def is_equivalent_rule(original, candidate):
             original_split_list = original.split()
             candidate_split_list = candidate.split()
 
-            if len(original_split_list) == len(candidate_split_list) and len(class_spec_candidate) == len(class_spec_original):
+            if len(original_split_list) == len(candidate_split_list) \
+                    and len(class_spec_candidate) == len(class_spec_original):
                 for index, segment_original in enumerate(original_split_list):
                     segment_candidate = candidate_split_list[index]
                     if segment_original in class_spec_original and segment_candidate in class_spec_candidate:
@@ -97,12 +98,13 @@ def is_equivalent_rule(original, candidate):
         return False
 
 
-def is_equivalent_rule_list(original, candidate_list, over_protective_rule):
+def is_equivalent_rule_list(original, candidate_list):
+    over_protective_rule = []
     for candidate in candidate_list:
-        if is_equivalent_rule(original, candidate.split('#')[0]):
+        if original.split('#')[0] != candidate.split('#')[0] and \
+                is_equivalent_rule(original.split('#')[0], candidate.split('#')[0]):
             over_protective_rule.append(candidate)
-            return True
-    return False
+    return over_protective_rule
 
 
 class Tester:
@@ -153,11 +155,14 @@ class Tester:
             missingRulesOther = 0
             f.write('Missing Rules:\n')
             for elm4 in missingRules:
-                over_protective_rule = []
-                if is_equivalent_rule_list(elm4, comparing, over_protective_rule):
-                    newCorrect.append((elm4 + "# over protected by; " + over_protective_rule[0]))
+                over_protective_rule = is_equivalent_rule_list(elm4, comparing)
+                if over_protective_rule:
+                    write_rule = elm4 + " # over protected by; \n"
+                    for rule in over_protective_rule:
+                        write_rule = write_rule + "\t\t# " + rule + "\n"
+                    newCorrect.append(write_rule)
                     missingRules.remove(elm4)
-                    print("EQUIVALENT RULE FOUND: " + elm4 + "# over protected by; " + over_protective_rule[0])
+                    print("EQUIVALENT RULE FOUND: " + write_rule)
                 elif '## is app specific rule' in elm4:
                     missinAppSpecificRules += 1
                     f.write('\t' + elm4 + '\n')
@@ -181,9 +186,17 @@ class Tester:
                             missingRulesOther += 1
                             f.write('\t' + elm4 + '\n')
 
+            over_protected_rule_count = len(newCorrect)
             correctRules.extend(newCorrect)
             f.write('\nCorrectly Generated Rules:\n')
             for elm3 in correctRules:
+                over_protective_rule = is_equivalent_rule_list(elm3, comparing)
+                if over_protective_rule:
+                    over_protected_rule_count += 1
+                    elm3 = elm3 + "# over protected by; \n"
+                    for rule in over_protective_rule:
+                        elm3 = elm3 + "\t\t# " + rule + "\n"
+                    print("EQUIVALENT RULE FOUND: " + elm3)
                 f.write('\t' + elm3 + '\n')
 
 
@@ -205,6 +218,11 @@ class Tester:
         perMissingImportRules = 0
         perMissingAppSpecificRules = 0
         perMissingRulesOther = 0
+        perOverProtectedRules = 0
+
+        if countCorrect != 0:
+            perOverProtectedRules = (over_protected_rule_count/countCorrect)*100
+
         if countMissing != 0:
             percentageRemainding = (countMissing / referenceLen) * 100
             perMissingDepRules = (missingDepRules/countMissing)*100
@@ -213,7 +231,8 @@ class Tester:
             perMissingRulesOther = (missingRulesOther/countMissing)*100
         return {"correct": percentageIn, "extra": percentageExtra, "missing": percentageRemainding,
                 "missingDepRules": perMissingDepRules, "missingImportRules": perMissingImportRules,
-                "missingAppSpecificRules": perMissingAppSpecificRules, "missingRulesOther": perMissingRulesOther}
+                "missingAppSpecificRules": perMissingAppSpecificRules, "missingRulesOther": perMissingRulesOther,
+                "overProtectedRules": perOverProtectedRules}
 
     @staticmethod
     def ruleGeneratingTestTemplate(methodToTest, appsToTest, timesToAverage=50,
@@ -228,6 +247,8 @@ class Tester:
         missingImportTot = 0
         missingAppSpecificTot = 0
         missingOthersTot = 0
+
+        overProtectedTot = 0
 
         f = open(folder + "/percentage-comp-test.csv", "w")
         f.write("Percentage, Correct, Extra, Remainder\n")
@@ -253,6 +274,7 @@ class Tester:
                 missingImportPr = similarities["missingImportRules"]
                 missingAppSpecificPr = similarities["missingAppSpecificRules"]
                 missingRulesOtherPr = similarities["missingRulesOther"]
+                overProtectedRulesPr = similarities["overProtectedRules"]
 
                 correct = str(round(correctPr, 2))
                 extra = str(round(extraPr, 2))
@@ -261,10 +283,12 @@ class Tester:
                 missingImport = str(round(missingImportPr, 2))
                 missingAppSpecific = str(round(missingAppSpecificPr, 2))
                 missingOther = str(round(missingRulesOtherPr, 2))
+                overProtectedRules = str(round(overProtectedRulesPr, 2))
 
                 f.write(str(i / 10) + ", " + correct + ", " + extra + ", " + missing + "\n")
                 print("\n********************\n" + appTested.getName() + "\n")
                 print("Correct Avg: " + correct)
+                print("OverProtected Rules: " + overProtectedRules)
                 print("Missing Avg: " + missing)
                 print("Extra Avg: " + extra)
                 print("-----------Missing Rules Type-----------")
@@ -277,15 +301,18 @@ class Tester:
                 extraPrTot = extraPrTot + extraPr
                 missingPrTot = missingPrTot + missingPr
 
-                missingDepTot = missingDepTot + missingDepPr
-                missingImportTot = missingImportTot + missingImportPr
-                missingAppSpecificTot = missingAppSpecificTot + missingAppSpecificPr
-                missingOthersTot = missingOthersTot + missingRulesOtherPr
+                missingDepTot += missingDepPr
+                missingImportTot += missingImportPr
+                missingAppSpecificTot += missingAppSpecificPr
+                missingOthersTot += missingRulesOtherPr
+
+                overProtectedTot += overProtectedRulesPr
 
                 bar()
 
         f.close()
         print("********************\nExperimento:", especificacionesExp, "\n********************")
+        print("OverProtected Rules: " + str(round(overProtectedTot / timesToAverage, 2)))
         print("Correct Avg: " + str(round(correctPrTot / timesToAverage, 2)))
         print("Missing Avg: " + str(round(missingPrTot / timesToAverage, 2)))
         print("Extra Avg: " + str(round(extraPrTot / timesToAverage, 2)))

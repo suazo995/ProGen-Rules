@@ -23,6 +23,7 @@ class App:
         self.classes = []
         self.proguardRuleFiles = []
         self.packageLocations = StringTrie(separator='.')
+        self.classLoadResourceFromAPK = StringTrie(separator='.')
 
         # se ve si esta activado proguard y donde estan los archivos de reglas
         isObfGradle = self.isAppObfuscatedG(self.buildGradleFiles)
@@ -346,6 +347,38 @@ class App:
         else:
             return False
 
+    def insertClassLoadResourceFromAPK(self, packageLocation, className):
+        trie = self.classLoadResourceFromAPK
+
+        if packageLocation not in trie.keys():
+            trie[packageLocation] = [className]
+        else:
+            temp = trie.pop(packageLocation)
+            temp.append(className)
+            trie[packageLocation] = temp
+
+        self.classLoadResourceFromAPK = trie
+
+    def getClassesLoadingResourceFromAPK(self):
+        return self.classLoadResourceFromAPK
+
+    def getRulesForResourceLoadingFromAPK(self):
+        APKClasses = self.getClassesLoadingResourceFromAPK()
+        allClasses = self.getPackageLocations()
+
+        returnRules = []
+
+        for key in APKClasses.keys():
+            resourceLoadingClasses = APKClasses[key]
+            classesInSameLocation = allClasses[key]
+
+            representation = len(resourceLoadingClasses)/len(classesInSameLocation)*100
+            if representation >= 50:
+                returnRules.append("keepnames class " + key + ".*")
+            else:
+                for clss in resourceLoadingClasses:
+                    returnRules.append("keepnames class." + key + clss.split('.', 1)[0])
+        return returnRules
 
 class Rules:
 
@@ -471,11 +504,11 @@ class AppClass:
         app.insertClassPackageLocation(self.packageLocation, self.name)
         self.imports = []
 
-    def findImports(self, path, imprt, flags):
+    def analyseClass(self, path, imprt, flags, app):
         try:
+            # primero se ven los imports de la clase
             with open(path, 'r') as file:
                 ret = []
-
                 imports = re.findall(imprt, file.read(), flags(re))
 
                 if imports:
@@ -483,7 +516,14 @@ class AppClass:
                         ' '.join(im.split())
                         im = im.split(" ")[-1]
                         ret.append(im)
-            return ret
+                file.close()
+
+            with open(path, 'r') as file:
+                apkResourceLoading = re.findall("\.getResource(AsStream)?\(", file.read(), flags(re))
+
+                if apkResourceLoading:
+                    app.insertClassLoadResourceFromAPK(self.packageLocation, self.name)
+            self.imports = ret
         except UnicodeDecodeError:
             print('*************************  unicode decode error: no se puede leer ', path)
             return []
@@ -496,10 +536,10 @@ class JavaClass(AppClass):
 
     def __init__(self, path, app):
         super().__init__(path, app)
-        self.imports = self.findImports(path, '^import(.*?);', lambda x: x.MULTILINE | x.DOTALL)
+        self.analyseClass(path, '^import(.*?);', lambda x: x.MULTILINE | x.DOTALL, app)
 
 
 class KtClass(AppClass):
     def __init__(self, path, app):
         super().__init__(path, app)
-        self.imports = self.findImports(path, '^import(.*?)$', lambda x: x.MULTILINE)
+        self.analyseClass(path, '^import(.*?)$', lambda x: x.MULTILINE, app)
