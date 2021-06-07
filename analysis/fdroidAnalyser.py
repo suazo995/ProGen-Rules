@@ -1,10 +1,10 @@
 from classes.Aplication import *
-import re
-import collections
 from classes.FDroidClass import FDroid
 from classes.DBConnect import DBConnect
-from pprint import pprint
 import matplotlib.pyplot as plt
+import re
+import collections
+from pprint import pprint
 import numpy as np
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)

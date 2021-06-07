@@ -71,7 +71,7 @@ def is_equivalent_rule(original, candidate):
     try:
         class_specification_rules = ['keep', 'keepclassmembers', 'keepclasseswithmembers', 'keepnames',
                                      'keepclassmembernames', 'keepclasseswithmembernames', 'dontwarn', 'dontnote']
-        if original.split(' ', 1)[0] in class_specification_rules:
+        if original.split(' ', 1)[0].split(',', 1)[0] in class_specification_rules:
             class_spec_original = isolate_class_specifications(original)
             class_spec_candidate = isolate_class_specifications(candidate)
 
@@ -92,6 +92,8 @@ def is_equivalent_rule(original, candidate):
                             return False
             else:
                 return False
+        else:
+            return False
         return True
     except ValueError:
         print("Value Error: Original: " + ''.join(original) + ", Candidato: " + ''.join(candidate))
@@ -130,6 +132,11 @@ class Tester:
 
         missingRules = reference
 
+        missingDepRules = 0
+        missingImportRules = 0
+        missinAppSpecificRules = 0
+        missingRulesOther = 0
+
         newCorrect = []
         if prnt:
             path = folder + "/" + app.getName()
@@ -149,10 +156,7 @@ class Tester:
                         if imAAgregar not in relatedImports:
                             relatedImports.append(imAAgregar)
 
-            missingDepRules = 0
-            missingImportRules = 0
-            missinAppSpecificRules = 0
-            missingRulesOther = 0
+
             f.write('Missing Rules:\n')
             for elm4 in missingRules:
                 over_protective_rule = is_equivalent_rule_list(elm4, comparing)
@@ -187,7 +191,6 @@ class Tester:
                             f.write('\t' + elm4 + '\n')
 
             over_protected_rule_count = len(newCorrect)
-            correctRules.extend(newCorrect)
             f.write('\nCorrectly Generated Rules:\n')
             for elm3 in correctRules:
                 over_protective_rule = is_equivalent_rule_list(elm3, comparing)
@@ -199,19 +202,21 @@ class Tester:
                     print("EQUIVALENT RULE FOUND: " + elm3)
                 f.write('\t' + elm3 + '\n')
 
+            for elm6 in newCorrect:
+                f.write('\t' + elm6 + '\n')
 
             f.write('\nOverly Generated Rules:\n')
             for elm5 in extraRules:
                 f.write('\t' + elm5 + '\n')
             f.close()
 
-        countCorrect = len(correctRules)
+        countCorrect = len(correctRules) + len(newCorrect)
         percentageIn = (countCorrect / referenceLen) * 100
         if list1len > 0:
             percentageExtra = (len(extraRules) / list1len) * 100
         else:
             percentageExtra = 100
-        countMissing = (referenceLen - countCorrect)
+        countMissing = len(missingRules)
 
         percentageRemainding = 0
         perMissingDepRules = 0
@@ -225,10 +230,10 @@ class Tester:
 
         if countMissing != 0:
             percentageRemainding = (countMissing / referenceLen) * 100
-            perMissingDepRules = (missingDepRules/countMissing)*100
+            perMissingDepRules = (missingDepRules / countMissing)*100
             perMissingImportRules = (missingImportRules / countMissing) * 100
             perMissingAppSpecificRules = (missinAppSpecificRules / countMissing) * 100
-            perMissingRulesOther = (missingRulesOther/countMissing)*100
+            perMissingRulesOther = (missingRulesOther / countMissing)*100
         return {"correct": percentageIn, "extra": percentageExtra, "missing": percentageRemainding,
                 "missingDepRules": perMissingDepRules, "missingImportRules": perMissingImportRules,
                 "missingAppSpecificRules": perMissingAppSpecificRules, "missingRulesOther": perMissingRulesOther,
@@ -323,7 +328,7 @@ class Tester:
         print("Missing Other Rules: " + str(round(missingOthersTot / timesToAverage, 2)))
 
     @staticmethod
-    def ruleGeneratingTestDB(pathsForComparison, db: DBConnect=DBConnect('root', 'Juan.suaz0'),
+    def ruleGeneratingTestDB(db: DBConnect=DBConnect('root', 'Juan.suaz0'),
                              timesToAverage=50, percentage=5, folder='resultsDB'):
 
         print("\n")
@@ -336,12 +341,13 @@ class Tester:
         f.write("Percentage, Correct, Extra, Remainder\n")
 
         appsToTest = []
-        with alive_bar(1) as bar:
-            # pathsToTest = db.getAppsToTest(timesToAverage)
+        with alive_bar(50) as bar:
+            bar.text('Retrieving Apps To Test')
+            pathsToTest = db.getAppsToTest(timesToAverage)
 
-            for path in pathsForComparison:
+            for path in pathsToTest:
                 appsToTest.append(App(path))
-            bar()
+                bar()
         Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder)
 
         db.close()

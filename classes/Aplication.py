@@ -24,6 +24,7 @@ class App:
         self.proguardRuleFiles = []
         self.packageLocations = StringTrie(separator='.')
         self.classLoadResourceFromAPK = StringTrie(separator='.')
+        self.classLoadedByJNIOnNativeSide = StringTrie(separator='.')
 
         # se ve si esta activado proguard y donde estan los archivos de reglas
         isObfGradle = self.isAppObfuscatedG(self.buildGradleFiles)
@@ -39,10 +40,10 @@ class App:
             ktClassesPaths = self.findFilePaths(path, "*.kt")
 
             for pth in javaClassesPaths:
-                if 'src/main/java/' in pth:
+                if 'src/main/' in pth:
                     self.classes.append(JavaClass(pth, self))
             for pth in ktClassesPaths:
-                if 'src/main/java/' in pth:
+                if 'src/main/' in pth:
                     self.classes.append(KtClass(pth, self))
 
             proguardRulePaths = []
@@ -54,6 +55,7 @@ class App:
                 self.proguardRuleFiles.append(file)
         # se registran las dependencias
         self.dependencies = self.extractDependencies(self.buildGradleFiles)
+        self.detectJavaCodeCalledFromNativeInstances()
 
     def getRules(self):
         retRules = []
@@ -347,6 +349,38 @@ class App:
         else:
             return False
 
+    def insertClassLoadedByJNI(self, packageLocation, className):
+        trie = self.classLoadedByJNIOnNativeSide
+
+        if packageLocation not in trie.keys():
+            trie[packageLocation] = [className]
+        else:
+            temp = trie.pop(packageLocation)
+            temp.append(className)
+            trie[packageLocation] = temp
+
+        self.classLoadedByJNIOnNativeSide = trie
+
+    def getClassesLoadedByJNI(self):
+        return self.classLoadedByJNIOnNativeSide
+
+    def isInClassesLoadedByJNI(self, classLocationReference):
+        separateClassAndElement = classLocationReference.rsplit('.', 1)
+
+        if len(separateClassAndElement) > 1:
+            locationReference = separateClassAndElement[0]
+            classReference = separateClassAndElement[1]
+
+            classesLoadedByJNITrie = self.getClassesLoadedByJNI()
+
+            if classReference == '**' and classesLoadedByJNITrie.has_subtrie(locationReference):
+                return True
+
+            elif classesLoadedByJNITrie.has_key(locationReference):
+                return True
+        else:
+            return False
+
     def insertClassLoadResourceFromAPK(self, packageLocation, className):
         trie = self.classLoadResourceFromAPK
 
@@ -364,21 +398,80 @@ class App:
 
     def getRulesForResourceLoadingFromAPK(self):
         APKClasses = self.getClassesLoadingResourceFromAPK()
+        return self.getRulesForClasses(APKClasses, "keepnames class ")
+
+    def getRulesForClasses(self, classes, rulePrefix, ruleSuffix=''):
+
         allClasses = self.getPackageLocations()
 
         returnRules = []
 
-        for key in APKClasses.keys():
-            resourceLoadingClasses = APKClasses[key]
-            classesInSameLocation = allClasses[key]
-
-            representation = len(resourceLoadingClasses)/len(classesInSameLocation)*100
-            if representation >= 50:
-                returnRules.append("keepnames class " + key + ".*")
-            else:
+        for key in classes.keys():
+            resourceLoadingClasses = classes[key]
+            if key not in allClasses.keys():
                 for clss in resourceLoadingClasses:
-                    returnRules.append("keepnames class." + key + clss.split('.', 1)[0])
+                    rule = rulePrefix + key + '.' + clss.split('.', 1)[0] + ruleSuffix
+                    if rule not in returnRules:
+                        returnRules.append(rule)
+            else:
+                classesInSameLocation = allClasses[key]
+
+                representation = len(resourceLoadingClasses)/len(classesInSameLocation)*100
+                if representation >= 50:
+                    returnRules.append(rulePrefix + key + ".*" + ruleSuffix)
+                else:
+                    for clss in resourceLoadingClasses:
+                        rule = rulePrefix + key + '.' + clss.split('.', 1)[0] + ruleSuffix
+                        if rule not in returnRules:
+                            returnRules.append(rule)
         return returnRules
+
+    def detectJavaCodeCalledFromNativeInstances(self):
+
+        returnClasses = []
+
+        for folder, dirs, files in os.walk(self.path):
+            for file in files:
+                JNIClassCall = False
+                JNIEnvDeclaration = False
+                includeJNIDeclaration = False
+
+                fullpath = os.path.join(folder, file)
+                extension = fullpath.rsplit('.', 1)[-1]
+
+                if extension == "cpp" or extension == "c":
+                    try:
+                        with open(fullpath, 'r') as f:
+                            for line in f:
+                                match_class_call = re.findall(".*->FindClass\((.*?)\).*", line)
+                                match_JNIenv_declaration = re.findall(".*JNIEnv\*.*", line)
+                                match_include_JNI_declaration = re.findall(".*#include (?:<|\")jni.h(?:>|\")", line)
+                                if match_class_call:
+                                    JNIClassCall = True
+                                if match_JNIenv_declaration:
+                                    JNIEnvDeclaration = True
+                                if match_include_JNI_declaration:
+                                    includeJNIDeclaration = True
+                                if (JNIClassCall and includeJNIDeclaration) or JNIEnvDeclaration:
+                                    break
+                        with open(fullpath, 'r') as f:
+                            if (JNIClassCall and includeJNIDeclaration) or JNIEnvDeclaration:
+                                match = re.findall("\"([a-zA-Z0-9]+?/[a-zA-Z0-9]+?[a-zA-Z0-9/]*?)\"", f.read(), re.MULTILINE)
+                                if match:
+                                    returnClasses.extend(match)
+                    except:
+                        print(fullpath.split("obfApps/", 1)[1])
+        reformatClasses = list(map(lambda x: x.replace('/', '.'), returnClasses))
+        for clss in reformatClasses:
+            clssSplit = clss.rsplit('.', 1)
+            packageLocation = clssSplit[0]
+            className = clssSplit[1]
+            self.insertClassLoadedByJNI(packageLocation, className)
+
+    def getRulesForClassesLoadedFromNativeSide(self):
+        JNIClasses = self.getClassesLoadedByJNI()
+        return self.getRulesForClasses(JNIClasses, "keep, includedescriptorclasses class ", " { *; }")
+
 
 class Rules:
 
@@ -500,7 +593,7 @@ class AppClass:
     def __init__(self, path, app: App):
         self.name = path.split('/')[-1]
         self.path = path
-        self.packageLocation = '.'.join(self.path.split('src/main/java/')[1].split('/')[:-1])
+        self.packageLocation = '.'.join(self.path.split('src/main/')[1].split('/')[:-1])
         app.insertClassPackageLocation(self.packageLocation, self.name)
         self.imports = []
 
@@ -540,6 +633,7 @@ class JavaClass(AppClass):
 
 
 class KtClass(AppClass):
+
     def __init__(self, path, app):
         super().__init__(path, app)
         self.analyseClass(path, '^import(.*?)$', lambda x: x.MULTILINE, app)
