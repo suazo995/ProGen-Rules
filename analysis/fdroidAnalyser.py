@@ -419,7 +419,7 @@ class FDroidAnalyser:
         f.write("App\t\t\tNumber of Rules\n")
 
         for app in ret:
-            rulesForDep = app.rulesForDepInApp(dep)[0]
+            rulesForDep = app.analyser.rulesForDepInApp(dep)[0]
             f.write(app.getName()+"\t\t\t"+str(len(rulesForDep))+"\n")
         f.close()
 
@@ -441,7 +441,7 @@ class FDroidAnalyser:
                 continue
             elif dep in app.getDependencies():
 
-                rules = app.rulesForDepInApp(dep)[0]
+                rules = app.analyser.rulesForDepInApp(dep)[0]
                 if len(rules) > 0 and prnt: f.write("# " + app.name + "\n")
                 for rule in rules:
                     if rule not in returnRules:
@@ -483,12 +483,12 @@ class FDroidAnalyser:
                 else:
                     if dep in app.getDependencies():
                         if prnt:
-                            if app.rulesForDepInApp(dep)[0]:
+                            if app.analyser.rulesForDepInApp(app, dep)[0]:
                                 f.write("\n# Rules for dep: " + dep + ", in App: " + app.getName() + "\n")
 
                         appsWithDep[dep] += 1
 
-                        rulesAndComp = app.rulesForDepInApp(dep, prnt, f)
+                        rulesAndComp = app.analyser.rulesForDepInApp(app, dep, prnt, f)
                         rules = rulesAndComp[0]
                         compRules.extend(rulesAndComp[1])
 

@@ -156,7 +156,6 @@ class Tester:
                         if imAAgregar not in relatedImports:
                             relatedImports.append(imAAgregar)
 
-
             f.write('Missing Rules:\n')
             for elm4 in missingRules:
                 over_protective_rule = is_equivalent_rule_list(elm4, comparing)
@@ -254,6 +253,7 @@ class Tester:
         missingOthersTot = 0
 
         overProtectedTot = 0
+        completelyCorrectRules = 0
 
         f = open(folder + "/percentage-comp-test.csv", "w")
         f.write("Percentage, Correct, Extra, Remainder\n")
@@ -290,6 +290,9 @@ class Tester:
                 missingOther = str(round(missingRulesOtherPr, 2))
                 overProtectedRules = str(round(overProtectedRulesPr, 2))
 
+                if round(correctPr, 2) == 100.0:
+                    completelyCorrectRules += 1
+
                 f.write(str(i / 10) + ", " + correct + ", " + extra + ", " + missing + "\n")
                 print("\n********************\n" + appTested.getName() + "\n")
                 print("Correct Avg: " + correct)
@@ -317,10 +320,11 @@ class Tester:
 
         f.close()
         print("********************\nExperimento:", especificacionesExp, "\n********************")
-        print("OverProtected Rules: " + str(round(overProtectedTot / timesToAverage, 2)))
         print("Correct Avg: " + str(round(correctPrTot / timesToAverage, 2)))
+        print("OverProtected Rules: " + str(round(overProtectedTot / timesToAverage, 2)))
         print("Missing Avg: " + str(round(missingPrTot / timesToAverage, 2)))
         print("Extra Avg: " + str(round(extraPrTot / timesToAverage, 2)))
+        print("Completely Correct Rules: " + str(round(completelyCorrectRules / timesToAverage * 100, 2)))
         print("-----------Missing Rules Type-----------")
         print("Missing Dep Rules: " + str(round(missingDepTot / timesToAverage, 2)))
         print("Missing Import Rules: " + str(round(missingImportTot / timesToAverage, 2)))
@@ -342,10 +346,11 @@ class Tester:
 
         appsToTest = []
         with alive_bar(50) as bar:
-            bar.text('Retrieving Apps To Test')
+            bar.text('Retrieving Apps To Test adn Generating App Objects: ')
             pathsToTest = db.getAppsToTest(timesToAverage)
 
             for path in pathsToTest:
+                bar.text('Retrieving Apps To Test adn Generating App Objects: ' + path.rsplit('/', 1)[1])
                 appsToTest.append(App(path))
                 bar()
         Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder)
@@ -372,7 +377,7 @@ class Tester:
                 while len(appsToTest) < timesToAverage:
                     app = repo.randomObfuscatedDontWarn()
 
-                    if len(app.rulesForDeps()) > 1 and len(
+                    if len(app.analyser.rulesForDeps(app)) > 1 and len(
                             app.getDependencies()) > 1 and app not in appsToTest:
                         appsToTest.append(app)
                         pathsForComparison.append(app.getPath())

@@ -26,7 +26,7 @@ class DBConnect:
 
     def saveApp(self, app):
         data = (app.getName(), app.getPath(), app.getDontObfuscateRule(),
-                len(app.getRules()), len(app.rulesForDeps()))
+                len(app.getRules()), len(app.analyser.rulesForDeps(app)))
 
         sql = '''
                 INSERT INTO Aplicacion (nombre, path, dontObf, numero_reglas, numero_reglas_deps)
