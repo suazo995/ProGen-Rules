@@ -1,3 +1,4 @@
+javalang
 pygtrie
 mysql
 alive-progress==1.6.1

@@ -13,25 +13,34 @@ class AppClass:
         app.insertClassPackageLocation(self.packageLocation, self.name)
         self.imports = []
 
+        try:
+            f = open(path, 'r')
+        except UnicodeDecodeError:
+            f = open(path, 'r', encoding='iso-8859-15')
+        self.code = f.read()
+        f.close()
+
+    def getCode(self):
+        return self.code
+
     def analyseClass(self, path, imprt, flags, app):
         try:
             # primero se ven los imports de la clase
-            with open(path, 'r') as file:
-                ret = []
-                imports = re.findall(imprt, file.read(), flags(re))
+            file = self.code
+            ret = []
+            imports = re.findall(imprt, file, flags(re))
 
-                if imports:
-                    for im in imports:
-                        ' '.join(im.split())
-                        im = im.split(" ")[-1]
-                        ret.append(im)
-                file.close()
+            if imports:
+                for im in imports:
+                    ' '.join(im.split())
+                    im = im.split(" ")[-1]
+                    ret.append(im)
 
-            with open(path, 'r') as file:
-                apkResourceLoading = re.findall("\.getResource(AsStream)?\(", file.read(), flags(re))
+            apkResourceLoading = re.findall("\.getResource(AsStream)?\(", file, flags(re))
 
-                if apkResourceLoading:
-                    app.insertClassLoadResourceFromAPK(self.packageLocation, self.name)
+            if apkResourceLoading:
+                app.insertClassLoadResourceFromAPK(self.packageLocation, self.name)
+
             self.imports = ret
         except UnicodeDecodeError:
             print('*************************  unicode decode error: no se puede leer ', path)
