@@ -18,7 +18,7 @@ class App:
         self.name = path.split('/')[-1]
         self.path = path
 
-        self.analyser = AppAnalyser()
+        self.analyser = AppAnalyser(self)
 
         self.buildGradleFiles = self.analyser.findFilePaths(path, "*uild.gradle")
         self.propertiesPaths = self.analyser.findFilePaths(path, "*roject.properties")
@@ -60,7 +60,7 @@ class App:
                 self.proguardRuleFiles.append(file)
         # se registran las dependencias
         self.dependencies = self.analyser.extractDependencies(self.buildGradleFiles)
-        self.analyser.detectJavaCodeCalledFromNativeInstances(self)
+        self.analyser.detectJavaCodeCalledFromNativeInstances()
 
     def getRules(self):
         retRules = []

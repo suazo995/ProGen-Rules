@@ -7,6 +7,9 @@ from termcolor import colored
 
 class AppAnalyser:
 
+    def __init__(self, app):
+        self.app = app
+
     @staticmethod
     def findFilePaths(path, file):
         return glob.glob(path + "/**/" + file, recursive=True)
@@ -140,15 +143,14 @@ class AppAnalyser:
             return []
         return ret
 
-    @staticmethod
-    def rulesForDepInApp(app, dep, prnt=False, f=None):
+    def rulesForDepInApp(self, dep, prnt=False, f=None):
         """
             Entrega las reglas para una dependencia en específico.
 
             :param app: Objeto analisador de una app, dep: Nombre de la dependencia.
             :return: lista de reglas atinentes a la dependencia.
         """
-
+        app = self.app
         imports = app.getAllImports()
         relatedImports = []
 
@@ -187,8 +189,7 @@ class AppAnalyser:
 
         return [rulesForThisDep, compRules]
 
-    @staticmethod
-    def rulesForDeps(app):
+    def rulesForDeps(self):
         """
             Entrega las reglas para todas las dependencias de la app.
 
@@ -196,9 +197,10 @@ class AppAnalyser:
             :return: lista de reglas atinentes a las dependencias de la app.
         """
         rulesForDeps = []
+        app = self.app
 
         for dep in app.dependencies:
-            rulesForDeps.extend(app.analyser.rulesForDepInApp(app, dep)[0])
+            rulesForDeps.extend(app.analyser.rulesForDepInApp(dep)[0])
 
         return rulesForDeps
 
@@ -228,9 +230,10 @@ class AppAnalyser:
         f.close()
         return returnClasses
 
-    @staticmethod
-    def detectJavaCodeCalledFromNativeInstances(app):
+    def detectJavaCodeCalledFromNativeInstances(self):
         returnClasses = []
+
+        app = self.app
 
         for folder, dirs, files in os.walk(app.path):
             for file in files:
@@ -256,76 +259,14 @@ class AppAnalyser:
             className = clssSplit[1]
             app.insertClassLoadedByJNI(packageLocation, className)
 
-    @staticmethod
-    def detectDataClasses(app, prnt=False):
+    def detectDataClasses(self, prnt=False):
+        app = self.app
         classes = app.getClasses()
-        nDataClasses = 0
-        nExtra = 0
-        totExtra = 0
+
+        dataClasses = []
 
         for cls in classes:
+            if cls.analyser.detectDataClass():
+                dataClasses.append(cls)
 
-            fieldDecalrations = 0
-            constructorDecarations = 0
-            methodThatReturnsDeclarations = 0
-
-            if cls.name:
-                classCode = cls.getCode()
-                tokens = javalang.tokenizer.tokenize(classCode)
-                parser = javalang.parser.Parser(tokens)
-
-                tree = parser.parse()
-
-                for elm in tree.types[0].body:
-                    if isinstance(elm, javalang.tree.FieldDeclaration):
-                        if 'final' not in elm.modifiers:
-                            fieldDecalrations += 1
-
-                        if prnt: print('Modifiers:', elm.modifiers, ', Type:', elm.type.name)
-                        for dec in elm.declarators:
-                            if prnt: print(dec.name)
-
-                    if isinstance(elm, javalang.tree.ConstructorDeclaration):
-
-                        constructorDecarations += 1
-
-                        if prnt: print(elm.name)
-                        for param in elm.parameters:
-                            if prnt: print('\t', param.name, param.type.name)
-
-                    if isinstance(elm, javalang.tree.MethodDeclaration):
-
-                        has_returns = False
-                        null = False
-                        override = False
-
-                        if prnt: print(elm.name)
-                        for path, node in elm.filter(javalang.tree.ReturnStatement):
-                            has_returns = True
-                            if isinstance(node.expression, javalang.tree.Literal) and node.expression.value=="null":
-                                null = True
-
-                        for ann in elm.annotations:
-                            if ann.name=="Override":
-                                override = True
-
-                        if has_returns and not null and not override:
-                            methodThatReturnsDeclarations += 1
-
-                    if prnt: print('--')
-            extends = isinstance(tree.types[0], javalang.tree.ClassDeclaration) and isinstance(tree.types[0].extends, javalang.tree.ReferenceType)
-            is_data_class = (fieldDecalrations*2 >= methodThatReturnsDeclarations or extends) and methodThatReturnsDeclarations >= fieldDecalrations*0.75 and (fieldDecalrations>0 or extends) and methodThatReturnsDeclarations>0
-            if '/data/' in cls.path:
-                if is_data_class:
-                    print(cls.name, {'Fields: ': fieldDecalrations, 'RetMethods: ': methodThatReturnsDeclarations},
-                          is_data_class)
-                    nDataClasses += 1
-                else:
-                    print(cls.name, {'Fields: ': fieldDecalrations, 'RetMethods: ': methodThatReturnsDeclarations},
-                          is_data_class)
-            elif is_data_class:
-                nExtra += 1
-                totExtra += 1
-            else:
-                totExtra += 1
-        print(nDataClasses, 'from', 19, ', extra: ', nExtra, 'from', totExtra)
+        return dataClasses

@@ -377,7 +377,7 @@ class Tester:
                 while len(appsToTest) < timesToAverage:
                     app = repo.randomObfuscatedDontWarn()
 
-                    if len(app.analyser.rulesForDeps(app)) > 1 and len(
+                    if len(app.analyser.rulesForDeps()) > 1 and len(
                             app.getDependencies()) > 1 and app not in appsToTest:
                         appsToTest.append(app)
                         pathsForComparison.append(app.getPath())

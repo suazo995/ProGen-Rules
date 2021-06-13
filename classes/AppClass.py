@@ -1,4 +1,5 @@
 import re
+from classes.AppClassAnalyser import *
 
 
 class AppClass:
@@ -55,10 +56,7 @@ class JavaClass(AppClass):
     def __init__(self, path, app):
         super().__init__(path, app)
         self.analyseClass(path, '^import(.*?);', lambda x: x.MULTILINE | x.DOTALL, app)
-        self.detectDataClasses()
-
-    def detectDataClasses(self):
-        pass
+        self.analyser = AppClassAnalyser(self)
 
 
 class KtClass(AppClass):

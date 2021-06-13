@@ -483,12 +483,12 @@ class FDroidAnalyser:
                 else:
                     if dep in app.getDependencies():
                         if prnt:
-                            if app.analyser.rulesForDepInApp(app, dep)[0]:
+                            if app.analyser.rulesForDepInApp(dep)[0]:
                                 f.write("\n# Rules for dep: " + dep + ", in App: " + app.getName() + "\n")
 
                         appsWithDep[dep] += 1
 
-                        rulesAndComp = app.analyser.rulesForDepInApp(app, dep, prnt, f)
+                        rulesAndComp = app.analyser.rulesForDepInApp(dep, prnt, f)
                         rules = rulesAndComp[0]
                         compRules.extend(rulesAndComp[1])
 
