@@ -60,4 +60,6 @@ class AppClassAnalyser:
                                                                                            javalang.tree.ReferenceType)
         return (fieldDecalrations * 2 >= methodThatReturnsDeclarations or extends) \
             and methodThatReturnsDeclarations >= fieldDecalrations * 0.75\
-            and (fieldDecalrations > 0 or extends) and methodThatReturnsDeclarations > 0
+            and (fieldDecalrations > 0 or extends)\
+            and methodThatReturnsDeclarations > 0 \
+            and constructorDecarations > 0

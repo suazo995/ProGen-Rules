@@ -13,6 +13,7 @@ class AppClass:
         self.packageLocation = '.'.join(self.path.split('src/main/')[1].split('/')[:-1])
         app.insertClassPackageLocation(self.packageLocation, self.name)
         self.imports = []
+        self.isDataClass = False
 
         try:
             f = open(path, 'r')
@@ -24,7 +25,7 @@ class AppClass:
     def getCode(self):
         return self.code
 
-    def analyseClass(self, path, imprt, flags, app):
+    def analyseClass(self, path, imprt, flags, app, is_kt=False):
         try:
             # primero se ven los imports de la clase
             file = self.code
@@ -39,6 +40,9 @@ class AppClass:
 
             apkResourceLoading = re.findall("\.getResource(AsStream)?\(", file, flags(re))
 
+            if is_kt:
+                self.isDataClass = bool(re.findall("^data class .+?\(", file, flags(re)))
+
             if apkResourceLoading:
                 app.insertClassLoadResourceFromAPK(self.packageLocation, self.name)
 
@@ -50,6 +54,9 @@ class AppClass:
     def getImports(self):
         return self.imports
 
+    def isDataClass(self):
+        return self.isDataClass
+
 
 class JavaClass(AppClass):
 
@@ -57,10 +64,11 @@ class JavaClass(AppClass):
         super().__init__(path, app)
         self.analyseClass(path, '^import(.*?);', lambda x: x.MULTILINE | x.DOTALL, app)
         self.analyser = AppClassAnalyser(self)
+        self.isDataClass = self.analyser.detectDataClass()
 
 
 class KtClass(AppClass):
 
     def __init__(self, path, app):
         super().__init__(path, app)
-        self.analyseClass(path, '^import(.*?)$', lambda x: x.MULTILINE, app)
+        self.analyseClass(path, '^import(.*?)$', lambda x: x.MULTILINE, app, True)

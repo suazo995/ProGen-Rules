@@ -6,7 +6,7 @@ number = 0
 for folder, dirs, files in os.walk(rootdir):
         for file in files:
             fullpath = os.path.join(folder, file)
-            if fullpath.rsplit('.', 1)[-1] == "kt":
+            if fullpath.rsplit('.', 1)[-1] == "kt" or fullpath.rsplit('.', 1)[-1] == "java":
                 try:
                     with open(fullpath, 'r') as f:
                         for line in f:

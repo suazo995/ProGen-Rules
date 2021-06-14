@@ -72,6 +72,16 @@ class App:
     def getClasses(self):
         return self.classes
 
+    def getDataClasses(self):
+        classes = self.classes
+        retClasses = []
+
+        for cls in classes:
+            if cls.isDataClass():
+                retClasses.append(cls)
+
+        return retClasses
+
     def getPgFiles(self):
         """Entrega los objetos de los archivos de reglas proguard."""
         return self.proguardRuleFiles
