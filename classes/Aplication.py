@@ -1,9 +1,10 @@
-import os
 from classes.DBConnect import DBConnect
 from pygtrie import StringTrie
 from classes.AppClass import *
 from classes.ProGuardRuleFile import *
 from classes.AppAnalyser import *
+import subprocess
+import shutil
 
 
 class App:
@@ -22,12 +23,21 @@ class App:
 
         self.buildGradleFiles = self.analyser.findFilePaths(path, "*uild.gradle")
         self.propertiesPaths = self.analyser.findFilePaths(path, "*roject.properties")
+        apks = self.analyser.findFilePaths(path, "*.apk")
+
+        self.hasDebugApk = []
+        self.originalFilesInApkDir = []
+        self.originalDirsInApkDir = []
+        for apk in apks:
+            if 'build/outputs/apk/debug/' in apk:
+                self.hasDebugApk.append(apk)
 
         self.dontObfuscateRule = False
         self.dontObfuscateFiles = []
         self.classes = []
         self.proguardRuleFiles = []
         self.packageLocations = StringTrie(separator='.')
+        self.packageLocationsExtended = StringTrie(separator='.')
         self.classLoadResourceFromAPK = StringTrie(separator='.')
         self.classLoadedByJNIOnNativeSide = StringTrie(separator='.')
 
@@ -46,10 +56,14 @@ class App:
 
             for pth in javaClassesPaths:
                 if 'src/main/' in pth:
-                    self.classes.append(JavaClass(pth, self))
+                    self.classes.append(JavaClass(pth, self, 'src/main/'))
+                if 'apk/debug/source/' in pth:
+                    self.classes.append(JavaClass(pth, self, 'apk/debug/source/', True))
             for pth in ktClassesPaths:
                 if 'src/main/' in pth:
-                    self.classes.append(KtClass(pth, self))
+                    self.classes.append(KtClass(pth, self, 'src/main/'))
+                if 'apk/debug/source/' in pth:
+                    self.classes.append(KtClass(pth, self, 'apk/debug/source/', True))
 
             proguardRulePaths = []
             for ruleFileName in (isObfProp + isObfGradle):
@@ -178,6 +192,40 @@ class App:
         else:
             return False
 
+    def insertClassPackageLocationExtended(self, packageLocation, className):
+        trie = self.packageLocationsExtended
+
+        if packageLocation not in trie.keys():
+            trie[packageLocation] = [className]
+        else:
+            temp = trie.pop(packageLocation)
+            temp.append(className)
+            trie[packageLocation] = temp
+
+        self.packageLocationsExtended = trie
+
+    def getPackageLocationsExtended(self):
+        return self.packageLocationsExtended
+
+    def isInPackageStructureExtended(self, classLocationReference):
+        separateClassAndElement = classLocationReference.rsplit('.', 1)
+
+        if len(separateClassAndElement) > 1:
+            locationReference = separateClassAndElement[0]
+            classReference = separateClassAndElement[1]
+
+            packageLocationsTrie = self.getPackageLocationsExtended()
+
+            if classReference == '**' and packageLocationsTrie.has_subtrie(locationReference):
+                return True
+
+            elif packageLocationsTrie.has_key(locationReference) \
+                    and (classReference+'.java' in packageLocationsTrie[locationReference]
+                         or classReference+'.kt' in packageLocationsTrie[locationReference]):
+                return True
+        else:
+            return False
+
     def insertClassLoadedByJNI(self, packageLocation, className):
         trie = self.classLoadedByJNIOnNativeSide
 
@@ -259,4 +307,54 @@ class App:
         JNIClasses = self.getClassesLoadedByJNI()
         return self.getRulesForClasses(JNIClasses, "keep, includedescriptorclasses class ", " { *; }")
 
+    def unpackApk(self):
 
+        if self.hasDebugApk:
+            for apk in self.hasDebugApk:
+
+                currentDir = apk.rsplit('/', 1)[0]
+
+                originalContentInApkDir = []
+
+                for item in os.listdir(currentDir):
+                    originalContentInApkDir.append(currentDir + '/' + item)
+
+
+                with open(os.devnull, 'wb') as devnull:
+                    subprocess.check_call(['unzip', apk, '-d', currentDir], stdout=devnull,  stderr=subprocess.STDOUT)
+
+                with open(os.devnull, 'wb') as devnull:
+                    d2j = '/Volumes/WanShiTong/Archive/UChile/Título/work/tools/dex2jar/2.0/bin/d2j-dex2jar'
+
+                    for folder, dirs, files in os.walk(currentDir):
+                        for file in files:
+                            extension = file.rsplit('.', 1)[1]
+                            if extension == 'dex':
+                                subprocess.check_call([d2j, '-e', currentDir+'errors.zip', '-o', currentDir+'/classes-dex2jar.jar',
+                                                       currentDir+'/'+file], stdout=devnull, stderr=subprocess.STDOUT)
+
+                with open(os.devnull, 'wb') as devnull:
+                    jdCli = '/Volumes/WanShiTong/Archive/UChile/Título/work/tools/jd-cli-1.2.0-dist/jd-cli.jar'
+                    source = apk.rsplit('/', 1)[0] + '/source'
+                    jar = apk.rsplit('/', 1)[0] + '/classes-dex2jar.jar'
+                    subprocess.check_call(['java', '-jar', jdCli, jar, '-od', source], stdout=devnull,
+                                          stderr=subprocess.STDOUT)
+
+            javaClassesPaths = self.analyser.findFilePaths(currentDir, "*.java")
+            ktClassesPaths = self.analyser.findFilePaths(currentDir, "*.kt")
+
+            for pth in javaClassesPaths:
+                    self.classes.append(JavaClass(pth, self, 'apk/debug/source/', True))
+            for pth in ktClassesPaths:
+                    self.classes.append(KtClass(pth, self, 'apk/debug/source/', True))
+
+            for item in os.listdir(currentDir):
+                item = currentDir + '/' + item
+                if item not in originalContentInApkDir and item != source:
+                    if os.path.isdir(item):
+                        shutil.rmtree(item)
+                    else:
+                        os.remove(item)
+
+        else:
+            print(self.name, 'does not have a debug apk. For better results, build a debug apk for your project.')

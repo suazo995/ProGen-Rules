@@ -1,3 +1,7 @@
+urllib3
+wget
+requests
+beautifulsoup4
 javalang
 pygtrie
 mysql

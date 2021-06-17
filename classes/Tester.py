@@ -112,12 +112,21 @@ def is_equivalent_rule_list(original, candidate_list):
 class Tester:
 
     @staticmethod
-    def listSimilarityPercentage(comparing, reference, prnt=False, app=None, folder='results'):
+    def listSimilarityPercentage(comparing, reference, negativeRules, prnt=False, app=None, folder='results'):
         correctRules = []
         extraRules = []
 
         list1len = len(comparing)
         referenceLen = len(reference)
+
+        falseNegative = []
+        trueNegative = []
+        for r in negativeRules:
+            toCompare = r.split('#', 1)[0]
+            if toCompare in reference:
+                falseNegative.append(r)
+            else:
+                trueNegative.append(r)
 
         for elm1 in comparing:
             toCompare = elm1.split('#', 1)[0]
@@ -204,6 +213,10 @@ class Tester:
             for elm6 in newCorrect:
                 f.write('\t' + elm6 + '\n')
 
+            f.write('\nFalse Negative Rules:\n')
+            for elm5 in falseNegative:
+                f.write('\t' + elm5 + '\n')
+
             f.write('\nOverly Generated Rules:\n')
             for elm5 in extraRules:
                 f.write('\t' + elm5 + '\n')
@@ -224,6 +237,17 @@ class Tester:
         perMissingRulesOther = 0
         perOverProtectedRules = 0
 
+        accuracy = (countCorrect + len(trueNegative))/(countCorrect + len(trueNegative) + len(extraRules) + len(falseNegative))
+        precision = countCorrect/(countCorrect + len(extraRules))
+        if countCorrect + len(falseNegative) == 0.0:
+            recall = 0
+        else:
+            recall = countCorrect/(countCorrect + len(falseNegative))
+        if recall == 0.0 and precision == 0.0:
+            f1score = 0
+        else:
+            f1score = (2*(recall*precision))/(recall + precision)
+
         if countCorrect != 0:
             perOverProtectedRules = (over_protected_rule_count/countCorrect)*100
 
@@ -236,7 +260,8 @@ class Tester:
         return {"correct": percentageIn, "extra": percentageExtra, "missing": percentageRemainding,
                 "missingDepRules": perMissingDepRules, "missingImportRules": perMissingImportRules,
                 "missingAppSpecificRules": perMissingAppSpecificRules, "missingRulesOther": perMissingRulesOther,
-                "overProtectedRules": perOverProtectedRules}
+                "overProtectedRules": perOverProtectedRules, 'precision': precision, 'accuracy': accuracy,
+                'recall': recall, 'f1score': f1score}
 
     @staticmethod
     def ruleGeneratingTestTemplate(methodToTest, appsToTest, timesToAverage=50,
@@ -252,6 +277,11 @@ class Tester:
         missingAppSpecificTot = 0
         missingOthersTot = 0
 
+        precisionTot = 0
+        accuracyTot = 0
+        recallTot = 0
+        f1scoreTot = 0
+
         overProtectedTot = 0
         completelyCorrectRules = 0
 
@@ -262,15 +292,17 @@ class Tester:
             for i in range(0, timesToAverage):
 
                 appTested = appsToTest[i]
+                appTested.unpackApk()
 
                 bar.text('Generating Rules for ' + appTested.getName() + '...' + str(percentage) + '% ')
 
-                rulesGenerated = methodToTest(appTested, percentage, True)
+                rulesGenerated, negativeRules = methodToTest(appTested, percentage, True)
 
                 rulesExtracted = appTested.getRules()
 
                 bar.text('Comparing Rules' + str(percentage) + '% ')
-                similarities = Tester.listSimilarityPercentage(rulesGenerated, rulesExtracted, True, appTested, folder)
+                similarities = Tester.listSimilarityPercentage(rulesGenerated, rulesExtracted,
+                                                               negativeRules, True, appTested, folder)
 
                 correctPr = similarities["correct"]
                 extraPr = similarities["extra"]
@@ -280,6 +312,12 @@ class Tester:
                 missingAppSpecificPr = similarities["missingAppSpecificRules"]
                 missingRulesOtherPr = similarities["missingRulesOther"]
                 overProtectedRulesPr = similarities["overProtectedRules"]
+
+
+                precision = similarities["precision"]
+                accuracy = similarities["accuracy"]
+                recall = similarities["recall"]
+                f1score = similarities["f1score"]
 
                 correct = str(round(correctPr, 2))
                 extra = str(round(extraPr, 2))
@@ -299,7 +337,12 @@ class Tester:
                 print("OverProtected Rules: " + overProtectedRules)
                 print("Missing Avg: " + missing)
                 print("Extra Avg: " + extra)
-                print("-----------Missing Rules Type-----------")
+                print("---------Data Science Pointers---------")
+                print("Precision: " + str(round(precision, 2)))
+                print("Accuracy: " + str(round(accuracy, 2)))
+                print("recall: " + str(round(recall, 2)))
+                print("F1 Score: " + str(round(f1score, 2)))
+                print("----------Missing Rules Type-----------")
                 print("Missing Dep Rules: " + missingDep)
                 print("Missing Import Rules: " + missingImport)
                 print("Missing App Specific Rules: " + missingAppSpecific)
@@ -314,6 +357,11 @@ class Tester:
                 missingAppSpecificTot += missingAppSpecificPr
                 missingOthersTot += missingRulesOtherPr
 
+                recallTot += recall
+                precisionTot += precision
+                accuracyTot += accuracy
+                f1scoreTot += f1score
+
                 overProtectedTot += overProtectedRulesPr
 
                 bar()
@@ -325,6 +373,11 @@ class Tester:
         print("Missing Avg: " + str(round(missingPrTot / timesToAverage, 2)))
         print("Extra Avg: " + str(round(extraPrTot / timesToAverage, 2)))
         print("Completely Correct Rules: " + str(round(completelyCorrectRules / timesToAverage * 100, 2)))
+        print("---------Data Science Pointers---------")
+        print("Precision: " + str(round(precisionTot/timesToAverage, 2)))
+        print("Accuracy: " + str(round(accuracyTot/timesToAverage, 2)))
+        print("recall: " + str(round(recallTot/timesToAverage, 2)))
+        print("F1 Score: " + str(round(f1scoreTot/timesToAverage, 2)))
         print("-----------Missing Rules Type-----------")
         print("Missing Dep Rules: " + str(round(missingDepTot / timesToAverage, 2)))
         print("Missing Import Rules: " + str(round(missingImportTot / timesToAverage, 2)))
@@ -333,7 +386,7 @@ class Tester:
 
     @staticmethod
     def ruleGeneratingTestDB(db: DBConnect=DBConnect('root', 'Juan.suaz0'),
-                             timesToAverage=50, percentage=5, folder='resultsDB'):
+                             specificAppsToTest=[], timesToAverage=50, percentage=5, folder='resultsDB'):
 
         print("\n")
 
@@ -343,19 +396,24 @@ class Tester:
 
         f = open("results/percentage-comp-test.csv", "w")
         f.write("Percentage, Correct, Extra, Remainder\n")
+        if specificAppsToTest:
+            appsToTest = []
+            for app in specificAppsToTest:
+                appsToTest.append(App(app))
+            Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder)
+        else:
+            appsToTest = []
+            with alive_bar(50) as bar:
+                bar.text('Retrieving Apps To Test adn Generating App Objects: ')
+                pathsToTest = db.getAppsToTest(timesToAverage)
 
-        appsToTest = []
-        with alive_bar(50) as bar:
-            bar.text('Retrieving Apps To Test adn Generating App Objects: ')
-            pathsToTest = db.getAppsToTest(timesToAverage)
+                for path in pathsToTest:
+                    bar.text('Retrieving Apps To Test adn Generating App Objects: ' + path.rsplit('/', 1)[1])
+                    appsToTest.append(App(path))
+                    bar()
+            Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder)
 
-            for path in pathsToTest:
-                bar.text('Retrieving Apps To Test adn Generating App Objects: ' + path.rsplit('/', 1)[1])
-                appsToTest.append(App(path))
-                bar()
-        Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder)
-
-        db.close()
+            db.close()
 
     @staticmethod
     def ruleGeneratingTestObject(pathToRepo='/Volumes/WanShiTong/Archive/UChile/Título/work/obfApps',

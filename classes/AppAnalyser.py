@@ -224,7 +224,7 @@ class AppAnalyser:
 
         f = open(fullpath, 'r', encoding=encoding)
         if (JNIClassCall and includeJNIDeclaration) or JNIEnvDeclaration:
-            match = re.findall("\"([a-zA-Z0-9]+?/[a-zA-Z0-9]+?[a-zA-Z0-9/]*?)\"", f.read(), re.MULTILINE)
+            match = re.findall("\"([a-zA-Z0-9_]+?/[a-zA-Z0-9_]+?[a-zA-Z0-9/_]*?)\"", f.read(), re.MULTILINE)
             if match:
                 returnClasses.extend(match)
         f.close()

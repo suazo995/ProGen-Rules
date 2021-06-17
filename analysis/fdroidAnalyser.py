@@ -3,11 +3,6 @@ from classes.FDroidClass import FDroid
 from classes.DBConnect import DBConnect
 import matplotlib.pyplot as plt
 import re
-import collections
-from pprint import pprint
-import numpy as np
-from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
-                               AutoMinorLocator)
 
 
 """
@@ -58,6 +53,7 @@ class DataBaseAnalyser:
             f = None
 
         returnRules = []
+        negativeRules = []
         compRules = []
         appsWithDep = dict.fromkeys(dependencies, 0)
 
@@ -97,17 +93,17 @@ class DataBaseAnalyser:
                                     if prnt: f.write("-" + rule + "\t# por proximidad\n")
                                     returnRules.append(rule)
                                 else:
-                                    for im in imports:
+                                    for indx, im in enumerate(imports):
 
                                         importEnd = im.split(".")[-1]
                                         if importEnd == "*" or importEnd == "**" and im.split(".")[-2] != "":
-                                            importEnd = im.split(".")[-2]
+                                            continue
 
-                                        if importEnd in rule:
+                                        if re.findall('\.?@?'+importEnd+'+? ', rule):
                                             if prnt: f.write("-" + rule + "\t# del import: " + im + "\n")
                                             returnRules.append(rule)
                                             break
-                                        else:
+                                        elif indx == len(imports)-1:
                                             compRules.append((rule, dep))
                                             break
 
@@ -143,9 +139,34 @@ class DataBaseAnalyser:
             if rule not in returnRules:
                 returnRules.append(rule + "# presente en  " + str(round(perc, 2)) + "%")
 
-        if prnt: f.close()
-        return returnRules
+        for tup in compRules:
+            rule = tup[0]
 
+            if rule not in returnRules and rule not in negativeRules:
+                negativeRules.append(rule)
+
+        positiveRules = []
+
+        if application.hasDebugApk:
+            for retR in returnRules:
+                isInPackageStructure = True
+
+                classSpecifications = isolate_class_specifications(retR)
+                for clsSpec in classSpecifications:
+                    if clsSpec == '*' or clsSpec == '**' or 'java.' in clsSpec or 'javax.' in clsSpec:
+                        isInPackageStructure = isInPackageStructure and True
+                        continue
+                    isInPackageStructure = isInPackageStructure and application.isInPackageStructureExtended(clsSpec)
+
+                if isInPackageStructure or 'keep' not in retR.split(' ', 1)[0]:
+                    positiveRules.append(retR)
+                else:
+                    negativeRules.append(retR)
+        else:
+            positiveRules.extend(returnRules)
+
+        if prnt: f.close()
+        return positiveRules, negativeRules
 
 
 class FDroidAnalyser:
@@ -529,7 +550,7 @@ class FDroidAnalyser:
                 returnRules.append(rule + "# presente en  " + str(round(perc, 2)) + "%")
 
         if prnt: f.close()
-        return returnRules
+        return returnRules, []
 
     def rulesForAllDepsList(self, apps: [App], percentage = 25, prnt=False):
         """
