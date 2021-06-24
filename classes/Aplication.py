@@ -28,8 +28,9 @@ class App:
         self.hasDebugApk = []
         self.originalFilesInApkDir = []
         self.originalDirsInApkDir = []
+
         for apk in apks:
-            if 'build/outputs/apk/debug/' in apk:
+            if 'build/outputs/apk/' in apk:
                 self.hasDebugApk.append(apk)
 
         self.dontObfuscateRule = False
@@ -57,13 +58,9 @@ class App:
             for pth in javaClassesPaths:
                 if 'src/main/' in pth:
                     self.classes.append(JavaClass(pth, self, 'src/main/'))
-                if 'apk/debug/source/' in pth:
-                    self.classes.append(JavaClass(pth, self, 'apk/debug/source/', True))
             for pth in ktClassesPaths:
                 if 'src/main/' in pth:
                     self.classes.append(KtClass(pth, self, 'src/main/'))
-                if 'apk/debug/source/' in pth:
-                    self.classes.append(KtClass(pth, self, 'apk/debug/source/', True))
 
             proguardRulePaths = []
             for ruleFileName in (isObfProp + isObfGradle):
@@ -221,7 +218,8 @@ class App:
 
             elif packageLocationsTrie.has_key(locationReference) \
                     and (classReference+'.java' in packageLocationsTrie[locationReference]
-                         or classReference+'.kt' in packageLocationsTrie[locationReference]):
+                         or classReference+'.kt' in packageLocationsTrie[locationReference]
+                         or classReference == '*'):
                 return True
         else:
             return False
@@ -307,7 +305,7 @@ class App:
         JNIClasses = self.getClassesLoadedByJNI()
         return self.getRulesForClasses(JNIClasses, "keep, includedescriptorclasses class ", " { *; }")
 
-    def unpackApk(self):
+    def unpackApk(self, bar, show):
 
         if self.hasDebugApk:
             for apk in self.hasDebugApk:
@@ -315,39 +313,51 @@ class App:
                 currentDir = apk.rsplit('/', 1)[0]
 
                 originalContentInApkDir = []
-
+                source = apk.rsplit('/', 1)[0] + '/source'
+                sourceDirPresent = False
                 for item in os.listdir(currentDir):
+                    if item == source: sourceDirPresent = True
                     originalContentInApkDir.append(currentDir + '/' + item)
+                if not sourceDirPresent:
+                    try:
+                        bar.text(show + '. Decompressing APK.')
+                        with open(os.devnull, 'wb') as devnull:
+                            subprocess.check_call(['unzip', '-o', apk, '-d', currentDir], stdout=devnull,
+                                                  stderr=subprocess.STDOUT)
 
+                        bar.text(show + '. Reformatting Dex file to Jar.')
+                        with open(os.devnull, 'wb') as devnull:
+                            d2j = '/Volumes/WanShiTong/Archive/UChile/Título/work/tools/dex2jar/2.0/bin/d2j-dex2jar'
 
-                with open(os.devnull, 'wb') as devnull:
-                    subprocess.check_call(['unzip', apk, '-d', currentDir], stdout=devnull,  stderr=subprocess.STDOUT)
+                            for folder, dirs, files in os.walk(currentDir):
+                                for file in files:
+                                    extension = file.rsplit('.', 1)
+                                    if len(extension) > 1 and extension[1] == 'dex':
+                                        subprocess.check_call([d2j, '-e', currentDir+'errors.zip', '-o', currentDir+'/classes-dex2jar.jar',
+                                                               currentDir+'/'+file], stdout=devnull, stderr=subprocess.STDOUT)
 
-                with open(os.devnull, 'wb') as devnull:
-                    d2j = '/Volumes/WanShiTong/Archive/UChile/Título/work/tools/dex2jar/2.0/bin/d2j-dex2jar'
+                        bar.text(show + '. Unpacking Jar.')
+                        try:
+                            with open(os.devnull, 'wb') as devnull:
+                                jdCli = '/Volumes/WanShiTong/Archive/UChile/Título/work/tools/jd-cli-1.2.0-dist/jd-cli.jar'
+                                jar = apk.rsplit('/', 1)[0] + '/classes-dex2jar.jar'
+                                subprocess.check_call(['java', '-jar', jdCli, jar, '-od', source], stdout=devnull,
+                                                      stderr=subprocess.STDOUT, timeout=30)
+                        except subprocess.TimeoutExpired:
+                            pass
+                    except subprocess.CalledProcessError:
+                        print('Error en', currentDir)
 
-                    for folder, dirs, files in os.walk(currentDir):
-                        for file in files:
-                            extension = file.rsplit('.', 1)[1]
-                            if extension == 'dex':
-                                subprocess.check_call([d2j, '-e', currentDir+'errors.zip', '-o', currentDir+'/classes-dex2jar.jar',
-                                                       currentDir+'/'+file], stdout=devnull, stderr=subprocess.STDOUT)
-
-                with open(os.devnull, 'wb') as devnull:
-                    jdCli = '/Volumes/WanShiTong/Archive/UChile/Título/work/tools/jd-cli-1.2.0-dist/jd-cli.jar'
-                    source = apk.rsplit('/', 1)[0] + '/source'
-                    jar = apk.rsplit('/', 1)[0] + '/classes-dex2jar.jar'
-                    subprocess.check_call(['java', '-jar', jdCli, jar, '-od', source], stdout=devnull,
-                                          stderr=subprocess.STDOUT)
-
-            javaClassesPaths = self.analyser.findFilePaths(currentDir, "*.java")
-            ktClassesPaths = self.analyser.findFilePaths(currentDir, "*.kt")
+            bar.text(show + '. Parsing Extended Classes.')
+            javaClassesPaths = self.analyser.findFilePaths(currentDir + '/source', "*.java")
+            ktClassesPaths = self.analyser.findFilePaths(currentDir + '/source', "*.kt")
 
             for pth in javaClassesPaths:
-                    self.classes.append(JavaClass(pth, self, 'apk/debug/source/', True))
+                    self.classes.append(AppClass(pth, self, 'apk/debug/source/', True))
             for pth in ktClassesPaths:
-                    self.classes.append(KtClass(pth, self, 'apk/debug/source/', True))
+                    self.classes.append(AppClass(pth, self, 'apk/debug/source/', True))
 
+            bar.text(show + '. Deleting Temporary Files.')
             for item in os.listdir(currentDir):
                 item = currentDir + '/' + item
                 if item not in originalContentInApkDir and item != source:
@@ -357,4 +367,5 @@ class App:
                         os.remove(item)
 
         else:
-            print(self.name, 'does not have a debug apk. For better results, build a debug apk for your project.')
+            print(self.name, 'does not have a debug apk. For better results, '
+                             'build a debug apk for your project in the standard directory.')

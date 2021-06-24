@@ -2,6 +2,8 @@ import re
 
 
 def isolate_class_specifications(rule):
+    ret = []
+
     class_specification_rules = ['keep', 'keepclassmembers', 'keepclasseswithmembers', 'keepnames',
                                  'keepclassmembernames', 'keepclasseswithmembernames', 'dontwarn', 'dontnote']
     if " extends " in rule or " implements " in rule:
@@ -13,7 +15,7 @@ def isolate_class_specifications(rule):
         else:
             classBeingExtended = classAndExtended[1].split(' ', 1)[0]
         extendingClass = classAndExtended[0].rsplit(' ', 1)[-1]
-        return [extendingClass, classBeingExtended]
+        ret.extend([extendingClass, classBeingExtended])
 
     elif rule.split(' ', 1)[0] in class_specification_rules:
         classLocationReference = rule.split(' {', 1)[0].rsplit(' ', 1)
@@ -22,8 +24,14 @@ def isolate_class_specifications(rule):
             return []
         classLocationReference = classLocationReference[1]
 
-        return [classLocationReference]
-    return []
+        ret.append(classLocationReference)
+
+    annotations = re.findall('@(.*?) ', rule)
+    if annotations:
+        for ann in annotations:
+            ret.append(ann)
+
+    return ret
 
 
 class ProGuard:

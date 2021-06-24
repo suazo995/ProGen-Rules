@@ -113,6 +113,7 @@ class Tester:
 
     @staticmethod
     def listSimilarityPercentage(comparing, reference, negativeRules, prnt=False, app=None, folder='results'):
+
         correctRules = []
         extraRules = []
 
@@ -130,13 +131,13 @@ class Tester:
 
         for elm1 in comparing:
             toCompare = elm1.split('#', 1)[0]
-            if toCompare in reference:
-                correctRules.append(elm1)
-                reference.remove(toCompare)
-            elif elm1 in reference:
+            if elm1 in reference:
                 correctRules.append(elm1)
                 reference.remove(elm1)
-            elif '## is app specific rule' not in elm1:
+            elif toCompare in reference:
+                correctRules.append(elm1)
+                reference.remove(toCompare)
+            else:
                 extraRules.append(elm1)
 
         missingRules = reference
@@ -165,16 +166,20 @@ class Tester:
                         if imAAgregar not in relatedImports:
                             relatedImports.append(imAAgregar)
 
+            necessary_over_protected_rule_count = 0
+            over_protected_rule_count = 0
             f.write('Missing Rules:\n')
             for elm4 in missingRules:
-                over_protective_rule = is_equivalent_rule_list(elm4, comparing)
+                over_protective_rule = is_equivalent_rule_list(elm4, extraRules)
                 if over_protective_rule:
                     write_rule = elm4 + " # over protected by; \n"
                     for rule in over_protective_rule:
+                        extraRules.remove(rule)
                         write_rule = write_rule + "\t\t# " + rule + "\n"
+                        necessary_over_protected_rule_count += 1
+                        over_protected_rule_count += 1
                     newCorrect.append(write_rule)
                     missingRules.remove(elm4)
-                    print("EQUIVALENT RULE FOUND: " + write_rule)
                 elif '## is app specific rule' in elm4:
                     missinAppSpecificRules += 1
                     f.write('\t' + elm4 + '\n')
@@ -197,17 +202,17 @@ class Tester:
                         if not seenImports:
                             missingRulesOther += 1
                             f.write('\t' + elm4 + '\n')
-
-            over_protected_rule_count = len(newCorrect)
+            over_protected_correct_rule_count = 0
             f.write('\nCorrectly Generated Rules:\n')
             for elm3 in correctRules:
-                over_protective_rule = is_equivalent_rule_list(elm3, comparing)
+                over_protective_rule = is_equivalent_rule_list(elm3, extraRules)
                 if over_protective_rule:
                     over_protected_rule_count += 1
+                    over_protected_correct_rule_count += 1
                     elm3 = elm3 + "# over protected by; \n"
                     for rule in over_protective_rule:
+                        extraRules.remove(rule)
                         elm3 = elm3 + "\t\t# " + rule + "\n"
-                    print("EQUIVALENT RULE FOUND: " + elm3)
                 f.write('\t' + elm3 + '\n')
 
             for elm6 in newCorrect:
@@ -218,7 +223,12 @@ class Tester:
                 f.write('\t' + elm5 + '\n')
 
             f.write('\nOverly Generated Rules:\n')
+            extraRules.sort()
             for elm5 in extraRules:
+                over_protective_rule = is_equivalent_rule_list(elm5, extraRules)
+                if over_protective_rule:
+                    for rule in over_protective_rule:
+                        over_protected_rule_count += 1
                 f.write('\t' + elm5 + '\n')
             f.close()
 
@@ -236,8 +246,11 @@ class Tester:
         perMissingAppSpecificRules = 0
         perMissingRulesOther = 0
         perOverProtectedRules = 0
+        necessary_perOverProtectedRules = 0
+        perOverProtectedCRules = 0
 
-        accuracy = (countCorrect + len(trueNegative))/(countCorrect + len(trueNegative) + len(extraRules) + len(falseNegative))
+        accuracy = (countCorrect + len(trueNegative))/\
+                   (countCorrect + len(trueNegative) + len(extraRules) + len(falseNegative))
         precision = countCorrect/(countCorrect + len(extraRules))
         if countCorrect + len(falseNegative) == 0.0:
             recall = 0
@@ -249,7 +262,9 @@ class Tester:
             f1score = (2*(recall*precision))/(recall + precision)
 
         if countCorrect != 0:
-            perOverProtectedRules = (over_protected_rule_count/countCorrect)*100
+            perOverProtectedCRules = (over_protected_correct_rule_count/countCorrect)*100
+            necessary_perOverProtectedRules = (necessary_over_protected_rule_count/countCorrect)*100
+            perOverProtectedRules = (over_protected_rule_count/list1len)*100
 
         if countMissing != 0:
             percentageRemainding = (countMissing / referenceLen) * 100
@@ -260,12 +275,13 @@ class Tester:
         return {"correct": percentageIn, "extra": percentageExtra, "missing": percentageRemainding,
                 "missingDepRules": perMissingDepRules, "missingImportRules": perMissingImportRules,
                 "missingAppSpecificRules": perMissingAppSpecificRules, "missingRulesOther": perMissingRulesOther,
-                "overProtectedRules": perOverProtectedRules, 'precision': precision, 'accuracy': accuracy,
-                'recall': recall, 'f1score': f1score}
+                "overProtectedRules": perOverProtectedRules, 'perOverProtectedCRules':perOverProtectedCRules,
+                'necessary_perOverProtectedRules': necessary_perOverProtectedRules,
+                'precision': precision, 'accuracy': accuracy, 'recall': recall, 'f1score': f1score}
 
     @staticmethod
-    def ruleGeneratingTestTemplate(methodToTest, appsToTest, timesToAverage=50,
-                                   percentage=5, folder='results', especificacionesExp="perc 5%, imports, index"):
+    def ruleGeneratingTestTemplate(methodToTest, appsToTest, timesToAverage=50,  percentage=5, folder='results',
+                                   especificacionesExp="perc 5%, imports, index", checkApk=False):
         print("\n")
 
         correctPrTot = 0
@@ -283,6 +299,8 @@ class Tester:
         f1scoreTot = 0
 
         overProtectedTot = 0
+        overProtectedCTot = 0
+        NoverProtectedTot = 0
         completelyCorrectRules = 0
 
         f = open(folder + "/percentage-comp-test.csv", "w")
@@ -292,15 +310,18 @@ class Tester:
             for i in range(0, timesToAverage):
 
                 appTested = appsToTest[i]
-                appTested.unpackApk()
+                if checkApk:
+                    show = 'Unpacking APK for Clean Up: ' + appTested.getName()
+                    bar.text(show)
+                    appTested.unpackApk(bar, show)
 
                 bar.text('Generating Rules for ' + appTested.getName() + '...' + str(percentage) + '% ')
 
-                rulesGenerated, negativeRules = methodToTest(appTested, percentage, True)
+                rulesGenerated, negativeRules = methodToTest(appTested, percentage, True, checkApk=checkApk)
 
                 rulesExtracted = appTested.getRules()
 
-                bar.text('Comparing Rules' + str(percentage) + '% ')
+                bar.text('Comparing Rules ' + appTested.getName() + str(percentage) + '% ')
                 similarities = Tester.listSimilarityPercentage(rulesGenerated, rulesExtracted,
                                                                negativeRules, True, appTested, folder)
 
@@ -312,7 +333,8 @@ class Tester:
                 missingAppSpecificPr = similarities["missingAppSpecificRules"]
                 missingRulesOtherPr = similarities["missingRulesOther"]
                 overProtectedRulesPr = similarities["overProtectedRules"]
-
+                NoverProtectedRulesPr = similarities["necessary_perOverProtectedRules"]
+                perOverProtectedCRules = similarities["perOverProtectedCRules"]
 
                 precision = similarities["precision"]
                 accuracy = similarities["accuracy"]
@@ -327,6 +349,8 @@ class Tester:
                 missingAppSpecific = str(round(missingAppSpecificPr, 2))
                 missingOther = str(round(missingRulesOtherPr, 2))
                 overProtectedRules = str(round(overProtectedRulesPr, 2))
+                NoverProtectedRules = str(round(NoverProtectedRulesPr, 2))
+                overProtectedCRules = str(round(perOverProtectedCRules, 2))
 
                 if round(correctPr, 2) == 100.0:
                     completelyCorrectRules += 1
@@ -335,6 +359,8 @@ class Tester:
                 print("\n********************\n" + appTested.getName() + "\n")
                 print("Correct Avg: " + correct)
                 print("OverProtected Rules: " + overProtectedRules)
+                print("OverProtected Correct Rules: " + overProtectedCRules)
+                print("Necessary OverProtected Rules: " + NoverProtectedRules)
                 print("Missing Avg: " + missing)
                 print("Extra Avg: " + extra)
                 print("---------Data Science Pointers---------")
@@ -363,6 +389,8 @@ class Tester:
                 f1scoreTot += f1score
 
                 overProtectedTot += overProtectedRulesPr
+                overProtectedCTot += perOverProtectedCRules
+                NoverProtectedTot += NoverProtectedRulesPr
 
                 bar()
 
@@ -370,6 +398,8 @@ class Tester:
         print("********************\nExperimento:", especificacionesExp, "\n********************")
         print("Correct Avg: " + str(round(correctPrTot / timesToAverage, 2)))
         print("OverProtected Rules: " + str(round(overProtectedTot / timesToAverage, 2)))
+        print("OverProtected Correct Rules: " + str(round(overProtectedCTot / timesToAverage, 2)))
+        print("Necessary OverProtected Rules: " + str(round(NoverProtectedTot / timesToAverage, 2)))
         print("Missing Avg: " + str(round(missingPrTot / timesToAverage, 2)))
         print("Extra Avg: " + str(round(extraPrTot / timesToAverage, 2)))
         print("Completely Correct Rules: " + str(round(completelyCorrectRules / timesToAverage * 100, 2)))
@@ -385,8 +415,8 @@ class Tester:
         print("Missing Other Rules: " + str(round(missingOthersTot / timesToAverage, 2)))
 
     @staticmethod
-    def ruleGeneratingTestDB(db: DBConnect=DBConnect('root', 'Juan.suaz0'),
-                             specificAppsToTest=[], timesToAverage=50, percentage=5, folder='resultsDB'):
+    def ruleGeneratingTestDB(db: DBConnect=DBConnect('root', 'Juan.suaz0'), specificAppsToTest=[], timesToAverage=50,
+                             percentage=5, folder='resultsDB', checkApk=False):
 
         print("\n")
 
@@ -398,26 +428,30 @@ class Tester:
         f.write("Percentage, Correct, Extra, Remainder\n")
         if specificAppsToTest:
             appsToTest = []
-            for app in specificAppsToTest:
-                appsToTest.append(App(app))
-            Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder)
+            with alive_bar(timesToAverage) as bar:
+                bar.text('Retrieving Apps To Test and Generating App Objects: ')
+                for app in specificAppsToTest:
+                    bar.text('Retrieving Apps To Test and Generating App Objects: ' + app.rsplit('/', 1)[1])
+                    appsToTest.append(App(app))
+                    bar()
+            Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder, checkApk=checkApk)
         else:
             appsToTest = []
-            with alive_bar(50) as bar:
-                bar.text('Retrieving Apps To Test adn Generating App Objects: ')
+            with alive_bar(timesToAverage) as bar:
+                bar.text('Retrieving Apps To Test and Generating App Objects: ')
                 pathsToTest = db.getAppsToTest(timesToAverage)
 
                 for path in pathsToTest:
-                    bar.text('Retrieving Apps To Test adn Generating App Objects: ' + path.rsplit('/', 1)[1])
+                    bar.text('Retrieving Apps To Test and Generating App Objects: ' + path.rsplit('/', 1)[1])
                     appsToTest.append(App(path))
                     bar()
-            Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder)
+            Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder, checkApk=checkApk)
 
             db.close()
 
     @staticmethod
     def ruleGeneratingTestObject(pathToRepo='/Volumes/WanShiTong/Archive/UChile/Título/work/obfApps',
-                                 timesToAverage=50, percentage=5, folder='results'):
+                                 timesToAverage=50, percentage=5, folder='results', checkApk=False):
         repo = FDroid(pathToRepo)
         print("\n")
 
@@ -440,5 +474,5 @@ class Tester:
                         appsToTest.append(app)
                         pathsForComparison.append(app.getPath())
                 bar()
-        Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder)
+        Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder, checkApk)
         return pathsForComparison

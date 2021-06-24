@@ -50,14 +50,15 @@ class DBConnect:
 
     def saveRules(self, appId, rules):
         for rule in rules:
-            data = (rule, appId)
+            if '## is app specific rule ' not in rule:
+                data = (rule, appId)
 
-            sql = '''
-                    INSERT INTO Regla (rule, appId)
-                    VALUES (%s, %s)
-                    '''
-            self.cursor.execute(sql, data)  # ejecuto la consulta
-            self.db.commit()  # modifico la base de datos
+                sql = '''
+                        INSERT INTO Regla (rule, appId)
+                        VALUES (%s, %s)
+                        '''
+                self.cursor.execute(sql, data)  # ejecuto la consulta
+                self.db.commit()  # modifico la base de datos
 
     def saveImports(self, appId, imports):
         for imp in imports:

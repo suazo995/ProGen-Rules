@@ -33,7 +33,7 @@ class DataBaseAnalyser:
     def __init__(self, database: DBConnect):
         self.database = database
 
-    def rulesForAllDepsExcludingApp(self, application: App, percentage = 25, prnt=False):
+    def rulesForAllDepsExcludingApp(self, application: App, percentage = 25, prnt=False, checkApk=False):
         """
             Entrega todas las reglas para todas las dependencias de una app excluyendo las reglas de la app determinada.
 
@@ -99,7 +99,7 @@ class DataBaseAnalyser:
                                         if importEnd == "*" or importEnd == "**" and im.split(".")[-2] != "":
                                             continue
 
-                                        if re.findall('\.?@?'+importEnd+'+? ', rule):
+                                        if re.findall('\.'+importEnd+'\.?', rule):
                                             if prnt: f.write("-" + rule + "\t# del import: " + im + "\n")
                                             returnRules.append(rule)
                                             break
@@ -141,13 +141,17 @@ class DataBaseAnalyser:
 
         for tup in compRules:
             rule = tup[0]
-
-            if rule not in returnRules and rule not in negativeRules:
-                negativeRules.append(rule)
+            inRet = False
+            if rule not in negativeRules:
+                for r in returnRules:
+                    if rule == r.split('#')[0]:
+                        inRet = True
+                        break
+                if not inRet: negativeRules.append(rule)
 
         positiveRules = []
 
-        if application.hasDebugApk:
+        if application.hasDebugApk and checkApk:
             for retR in returnRules:
                 isInPackageStructure = True
 
@@ -471,8 +475,7 @@ class FDroidAnalyser:
         if prnt: f.close()
         return returnRules
 
-
-    def rulesForAllDepsExcludingApp(self, application: App, percentage = 25, prnt=False):
+    def rulesForAllDepsExcludingApp(self, application: App, percentage = 25, prnt=False, checkApk=False):
         """
             Entrega todas las reglas para todas las dependencias de una app excluyendo las reglas de la app determinada.
 
