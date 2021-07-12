@@ -14,8 +14,7 @@ class AppAnalyser:
     def findFilePaths(path, file):
         return glob.glob(path + "/**/" + file, recursive=True)
 
-    @staticmethod
-    def isAppObfuscatedG(build):
+    def isAppObfuscatedG(self, build):
         ruleFiles = []
         for file in build:
             obfuscated = False
@@ -42,20 +41,23 @@ class AppAnalyser:
                         if '{' in ln:
                             count_bracket += 1
 
+                        if '}' in ln:
+                            if count_bracket == 0:
+                                break
+                            else:
+                                count_bracket -= 1
+
                         if 'fileTree' in ln:
                             if 'dir' in ln:
                                 search = "dir: '(.*?)'"
                             else:
                                 search = "'(.*?)'"
                             for direct in re.findall(search, ln):
+                                self.app.insertObfuscatedDirectory(file.rsplit('/', 1)[0])
                                 ruleFiles.extend(os.listdir('/'.join(file.split('/')[0:-1]) + "/" + direct))
                         else:
+                            self.app.insertObfuscatedDirectory(file.rsplit('/', 1)[0]+'/src/main/java/')
                             ruleFiles.extend(re.findall("'(.*?\..*?)'", ln))
-                        if '}' in ln:
-                            if count_bracket == 0:
-                                break
-                            else:
-                                count_bracket -= 1
         return ruleFiles
 
     @staticmethod
@@ -270,3 +272,11 @@ class AppAnalyser:
                 dataClasses.append(cls)
 
         return dataClasses
+
+    def appSpecificRules(self):
+        ret = []
+        rls = self.app.getRules()
+        for r in rls:
+            if "## is app specific" in r:
+                ret.append(r)
+        return ret

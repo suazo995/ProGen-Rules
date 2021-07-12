@@ -1,12 +1,13 @@
 import sys
 from alive_progress import alive_bar
 from classes.FDroidClass import FDroid
-from classes.Aplication import App, isolate_class_specifications
+from classes.Aplication import App
+from analysis.ProGuardAnalyser import isolate_class_references
 from classes.DBConnect import DBConnect
-from analysis.fdroidAnalyser import FDroidAnalyser, DataBaseAnalyser
+from analysis.fdroidAnalyser import FDroidAnalyser
+from analysis.DataBaseAnalyser import DataBaseAnalyser
 
 sys.path.insert(1, '/Volumes/WanShiTong/Archive/UChile/Título/work/Src')
-
 
 def is_subgroup_of_class_spec(candidate, original):
 
@@ -17,63 +18,101 @@ def is_subgroup_of_class_spec(candidate, original):
     end_of_original = not bool(tail_original)
 
     if head_candidate == "*":
-        if end_of_candidate and end_of_original:
-            return True
-        elif head_original == "**":
-            if not end_of_candidate and not end_of_original:
-                if tail_original[0] == tail_candidate[0]:
-                    return is_subgroup_of_class_spec(tail_candidate, tail_original)
-                else:
-                    return is_subgroup_of_class_spec(tail_candidate, original)
-            if end_of_candidate:
-                if not end_of_original:
-                    return is_subgroup_of_class_spec(candidate, tail_original)
-                return False
-        elif end_of_candidate and not end_of_original:
-            return False
-        return is_subgroup_of_class_spec(tail_candidate, tail_original)
-    elif head_candidate == "**":
-        if head_original == '*':
-            if end_of_original and end_of_candidate:
-                return False
-        if head_original == "**" and not end_of_original and not end_of_candidate \
-                and tail_original[0] == tail_candidate[0]:
-            return is_subgroup_of_class_spec(tail_candidate, tail_original)
-        if end_of_candidate:
-            return True
-        if not end_of_candidate and not end_of_original:
-            if tail_original[0] == tail_candidate[0]:
-                return is_subgroup_of_class_spec(tail_candidate, tail_original)
-            else:
-                return is_subgroup_of_class_spec(candidate, tail_original)
-    else:
-        if head_original == "**":
-            if not end_of_candidate and not end_of_original:
-                if tail_original[0] == tail_candidate[0]:
-                    return is_subgroup_of_class_spec(tail_candidate, tail_original)
-                else:
-                    return is_subgroup_of_class_spec(tail_candidate, original)
-            if end_of_original and not end_of_candidate:
-                return False
-            if end_of_candidate:
-                return False
-        elif head_original == head_candidate:
-            if end_of_candidate and end_of_original:
+
+        if head_original == "*":
                 return True
-            return is_subgroup_of_class_spec(tail_candidate, tail_original)
-        if head_original == '*' and not end_of_candidate and not end_of_original:
-            return is_subgroup_of_class_spec(tail_candidate, tail_original)
+
+        elif head_original == "**":
+                return False
         else:
+            if end_of_original:
+                return True
+
+            elif not end_of_original:
+                return False
+
+    elif head_candidate == "**":
+
+        if head_original == "*":
+
+            if not end_of_candidate:
+                return False
+
+            elif end_of_candidate:
+                return True
+
+        elif head_original == "**":
+            if end_of_original and end_of_candidate:
+                return True
+
+            elif not end_of_original and not end_of_candidate:
+                if tail_original[0] == tail_candidate[0]:
+                    return is_subgroup_of_class_spec(tail_candidate, tail_original)
+                else:
+                    return is_subgroup_of_class_spec(candidate, tail_original)
+            elif end_of_original:
+                return False
+
+            elif end_of_candidate:
+                return True
+
+        else:
+            if end_of_original and end_of_candidate:
+                return True
+
+            elif not end_of_original and not end_of_candidate:
+                if tail_original[0] == tail_candidate[0]:
+                    return is_subgroup_of_class_spec(tail_candidate, tail_original)
+                else:
+                    if tail_original[0] == '**':
+                        return False
+                    return is_subgroup_of_class_spec(candidate, tail_original)
+
+            elif end_of_original:
+                return False
+
+            elif end_of_candidate:
+                return True
+
+    else:
+
+        if head_original == "*":
             return False
+
+        elif head_original == "**":
+            return False
+
+        else:
+            if end_of_original and end_of_original:
+                return head_original == head_candidate
+
+            elif not end_of_original and not end_of_original:
+                if head_original == head_candidate:
+                    return is_subgroup_of_class_spec(tail_candidate, tail_original)
+                else:
+                    return False
+            elif end_of_original:
+                return False
+
+            elif end_of_candidate:
+                return False
+
+
+
 
 
 def is_equivalent_rule(original, candidate):
     try:
         class_specification_rules = ['keep', 'keepclassmembers', 'keepclasseswithmembers', 'keepnames',
                                      'keepclassmembernames', 'keepclasseswithmembernames', 'dontwarn', 'dontnote']
+
+        rule_contains = {'keep': ['keepnames', 'keepclassmembers', 'keepclassmembernames'],
+                         'keepnames': ['keepclassmembernames', 'keep'],
+                         'keepclassmembers': ['keepclassmembernames']}
+
         if original.split(' ', 1)[0].split(',', 1)[0] in class_specification_rules:
-            class_spec_original = isolate_class_specifications(original)
-            class_spec_candidate = isolate_class_specifications(candidate)
+            class_spec_original = isolate_class_references(original)[0]
+            class_spec_candidate = isolate_class_references(candidate)[0]
 
             original_split_list = original.split()
             candidate_split_list = candidate.split()
@@ -89,14 +128,16 @@ def is_equivalent_rule(original, candidate):
                             return False
                     else:
                         if segment_original != segment_candidate:
-                            return False
+                            if segment_candidate in rule_contains.keys() and segment_original in rule_contains[segment_candidate]:
+                                pass
+                            else:
+                                return False
             else:
                 return False
         else:
             return False
         return True
     except ValueError:
-        print("Value Error: Original: " + ''.join(original) + ", Candidato: " + ''.join(candidate))
         return False
 
 
@@ -104,7 +145,7 @@ def is_equivalent_rule_list(original, candidate_list):
     over_protective_rule = []
     for candidate in candidate_list:
         if original.split('#')[0] != candidate.split('#')[0] and \
-                is_equivalent_rule(original.split('#')[0], candidate.split('#')[0]):
+                is_equivalent_rule(original.split(' #')[0], candidate.split(' #')[0]):
             over_protective_rule.append(candidate)
     return over_protective_rule
 
@@ -112,7 +153,31 @@ def is_equivalent_rule_list(original, candidate_list):
 class Tester:
 
     @staticmethod
-    def listSimilarityPercentage(comparing, reference, negativeRules, prnt=False, app=None, folder='results'):
+    def listSimilarityPercentage(comparing, reference, negativeRules, prnt=False, app=None, folder='results', testCodeAnalisys=False):
+
+        appSecificRules = []
+        generatedAppSpecificRules = []
+
+        appSpecificGenerated = 0
+        if testCodeAnalisys:
+
+            referenceAux = reference
+            for ref in referenceAux:
+                if '## is app specific rule ' in ref:
+                    reference.remove(ref)
+                    appSecificRules.append(ref)
+
+            print('Testing Code Analysis')
+
+            #data_class_rules = app.getRulesForDataClasses()
+            apk_rules = app.getRulesForResourceLoadingFromAPK()
+            jni_rules = app.getRulesForClassesLoadedFromNativeSide()
+
+            #generatedAppSpecificRules.extend(data_class_rules)
+            generatedAppSpecificRules.extend(apk_rules)
+            generatedAppSpecificRules.extend(jni_rules)
+
+            appSpecificGenerated = len(apk_rules) + len(jni_rules)# + len(data_class_rules)
 
         correctRules = []
         extraRules = []
@@ -143,8 +208,8 @@ class Tester:
         missingRules = reference
 
         missingDepRules = 0
-        missingImportRules = 0
         missinAppSpecificRules = 0
+        missingJavaAndroidRules = 0
         missingRulesOther = 0
 
         newCorrect = []
@@ -168,11 +233,51 @@ class Tester:
 
             necessary_over_protected_rule_count = 0
             over_protected_rule_count = 0
-            f.write('Missing Rules:\n')
-            for elm4 in missingRules:
+            correctly_generated_app_specific_rules = 0
+
+            keys = app.getPackageLocations().keys()
+
+            f.write('App Specific Rules:\n')
+            for elm in appSecificRules:
+                if elm.split(' #', 1)[0] in generatedAppSpecificRules:
+                    correctly_generated_app_specific_rules += 1
+                    correctRules.append(elm)
+                else:
+                    over_protected_rule = is_equivalent_rule_list(elm.split(' #', 1)[0], generatedAppSpecificRules)
+                    if over_protected_rule:
+                        correctly_generated_app_specific_rules += 1
+                        write_rule = elm + " # overprotected by; \n"
+                        for rule in over_protected_rule:
+                            write_rule = write_rule + "\t\t# " + rule + "\n"
+                        correctRules.append(write_rule)
+                    else:
+                        f.write('\t' + elm + '\n')
+
+            for elm in generatedAppSpecificRules:
+                over_protected_rule = is_equivalent_rule_list(elm, appSecificRules)
+                if over_protected_rule:
+                    correctly_generated_app_specific_rules += 1
+                    write_rule = elm + " # overprotected by; \n"
+
+                    for rule in over_protected_rule:
+
+                        write_rule = write_rule + "\t\t# " + rule + "\n"
+                    f.write('\t' + write_rule + '\n')
+                else:
+                    f.write('\t' + elm + '\n')
+
+            if appSpecificGenerated != 0:
+                correctly_generated_app_specific_rules = correctly_generated_app_specific_rules / appSpecificGenerated * 100
+            else:
+                correctly_generated_app_specific_rules = -1
+
+
+            f.write('\nMissing Rules:\n')
+            missingRulesAux = missingRules
+            for elm4 in missingRulesAux:
                 over_protective_rule = is_equivalent_rule_list(elm4, extraRules)
                 if over_protective_rule:
-                    write_rule = elm4 + " # over protected by; \n"
+                    write_rule = elm4 + " # overprotected by; \n"
                     for rule in over_protective_rule:
                         extraRules.remove(rule)
                         write_rule = write_rule + "\t\t# " + rule + "\n"
@@ -180,7 +285,9 @@ class Tester:
                         over_protected_rule_count += 1
                     newCorrect.append(write_rule)
                     missingRules.remove(elm4)
-                elif '## is app specific rule' in elm4:
+
+            for elm4 in missingRules:
+                if '## is app specific rule' in elm4:
                     missinAppSpecificRules += 1
                     f.write('\t' + elm4 + '\n')
                 else:
@@ -192,16 +299,12 @@ class Tester:
                             seenDeps = True
                             break
                     if not seenDeps:
-                        seenImports = False
-                        for im in relatedImports:
-                            if im in elm4:
-                                missingImportRules += 1
-                                f.write('\t' + elm4 + ' # from import ' + im + '\n')
-                                seenImports = True
-                                break
-                        if not seenImports:
+                        if 'java.' in elm4 or 'javax.' in elm4 or 'android.' in elm4:
+                            missingJavaAndroidRules += 1
+                        else:
                             missingRulesOther += 1
-                            f.write('\t' + elm4 + '\n')
+                        f.write('\t' + elm4 + '\n')
+
             over_protected_correct_rule_count = 0
             f.write('\nCorrectly Generated Rules:\n')
             for elm3 in correctRules:
@@ -238,13 +341,15 @@ class Tester:
             percentageExtra = (len(extraRules) / list1len) * 100
         else:
             percentageExtra = 100
+
         countMissing = len(missingRules)
 
         percentageRemainding = 0
         perMissingDepRules = 0
-        perMissingImportRules = 0
         perMissingAppSpecificRules = 0
+        perMissingJavaAndroidRules = 0
         perMissingRulesOther = 0
+
         perOverProtectedRules = 0
         necessary_perOverProtectedRules = 0
         perOverProtectedCRules = 0
@@ -269,28 +374,30 @@ class Tester:
         if countMissing != 0:
             percentageRemainding = (countMissing / referenceLen) * 100
             perMissingDepRules = (missingDepRules / countMissing)*100
-            perMissingImportRules = (missingImportRules / countMissing) * 100
             perMissingAppSpecificRules = (missinAppSpecificRules / countMissing) * 100
+            perMissingJavaAndroidRules = (missingJavaAndroidRules / countMissing) * 100
             perMissingRulesOther = (missingRulesOther / countMissing)*100
         return {"correct": percentageIn, "extra": percentageExtra, "missing": percentageRemainding,
-                "missingDepRules": perMissingDepRules, "missingImportRules": perMissingImportRules,
+                "missingDepRules": perMissingDepRules, 'perMissingJavaAndroidRules': perMissingJavaAndroidRules,
                 "missingAppSpecificRules": perMissingAppSpecificRules, "missingRulesOther": perMissingRulesOther,
                 "overProtectedRules": perOverProtectedRules, 'perOverProtectedCRules':perOverProtectedCRules,
-                'necessary_perOverProtectedRules': necessary_perOverProtectedRules,
+                'necessary_perOverProtectedRules': necessary_perOverProtectedRules, 'generatedAppSpecific': correctly_generated_app_specific_rules,
                 'precision': precision, 'accuracy': accuracy, 'recall': recall, 'f1score': f1score}
 
     @staticmethod
-    def ruleGeneratingTestTemplate(methodToTest, appsToTest, timesToAverage=50,  percentage=5, folder='results',
-                                   especificacionesExp="perc 5%, imports, index", checkApk=False):
+    def ruleGeneratingTestTemplate(methodToTest, appsToTest, timesToAverage=50,  percentage=5, folder='results', checkApk=False, testCodeAnalisys=False):
         print("\n")
 
         correctPrTot = 0
         extraPrTot = 0
         missingPrTot = 0
 
+        withMissing = 0
+        withAppSepcific = 0
+
         missingDepTot = 0
-        missingImportTot = 0
         missingAppSpecificTot = 0
+        missingJavaAndroidTot = 0
         missingOthersTot = 0
 
         precisionTot = 0
@@ -302,6 +409,8 @@ class Tester:
         overProtectedCTot = 0
         NoverProtectedTot = 0
         completelyCorrectRules = 0
+
+        generatedAppSpecificTot = 0
 
         f = open(folder + "/percentage-comp-test.csv", "w")
         f.write("Percentage, Correct, Extra, Remainder\n")
@@ -323,18 +432,20 @@ class Tester:
 
                 bar.text('Comparing Rules ' + appTested.getName() + str(percentage) + '% ')
                 similarities = Tester.listSimilarityPercentage(rulesGenerated, rulesExtracted,
-                                                               negativeRules, True, appTested, folder)
+                                                               negativeRules, True, appTested, folder, testCodeAnalisys)
 
                 correctPr = similarities["correct"]
                 extraPr = similarities["extra"]
                 missingPr = similarities["missing"]
                 missingDepPr = similarities["missingDepRules"]
-                missingImportPr = similarities["missingImportRules"]
                 missingAppSpecificPr = similarities["missingAppSpecificRules"]
+                missingJavaAndroidRules = similarities["perMissingJavaAndroidRules"]
                 missingRulesOtherPr = similarities["missingRulesOther"]
                 overProtectedRulesPr = similarities["overProtectedRules"]
                 NoverProtectedRulesPr = similarities["necessary_perOverProtectedRules"]
                 perOverProtectedCRules = similarities["perOverProtectedCRules"]
+
+                generatedAppSpecific = similarities['generatedAppSpecific']
 
                 precision = similarities["precision"]
                 accuracy = similarities["accuracy"]
@@ -345,12 +456,14 @@ class Tester:
                 extra = str(round(extraPr, 2))
                 missing = str(round(missingPr, 2))
                 missingDep = str(round(missingDepPr, 2))
-                missingImport = str(round(missingImportPr, 2))
                 missingAppSpecific = str(round(missingAppSpecificPr, 2))
+                missingJavaAndroid = str(round(missingJavaAndroidRules, 2))
                 missingOther = str(round(missingRulesOtherPr, 2))
                 overProtectedRules = str(round(overProtectedRulesPr, 2))
                 NoverProtectedRules = str(round(NoverProtectedRulesPr, 2))
                 overProtectedCRules = str(round(perOverProtectedCRules, 2))
+
+                generatedAppSpecificStr = str(round(generatedAppSpecific, 2))
 
                 if round(correctPr, 2) == 100.0:
                     completelyCorrectRules += 1
@@ -358,6 +471,7 @@ class Tester:
                 f.write(str(i / 10) + ", " + correct + ", " + extra + ", " + missing + "\n")
                 print("\n********************\n" + appTested.getName() + "\n")
                 print("Correct Avg: " + correct)
+                print("Correct App Rules Avg: " + generatedAppSpecificStr)
                 print("OverProtected Rules: " + overProtectedRules)
                 print("OverProtected Correct Rules: " + overProtectedCRules)
                 print("Necessary OverProtected Rules: " + NoverProtectedRules)
@@ -370,23 +484,29 @@ class Tester:
                 print("F1 Score: " + str(round(f1score, 2)))
                 print("----------Missing Rules Type-----------")
                 print("Missing Dep Rules: " + missingDep)
-                print("Missing Import Rules: " + missingImport)
                 print("Missing App Specific Rules: " + missingAppSpecific)
+                print("Missing Java/Android Rules: " + missingJavaAndroid)
                 print("Missing Other Rules: " + missingOther)
 
                 correctPrTot = correctPrTot + correctPr
                 extraPrTot = extraPrTot + extraPr
                 missingPrTot = missingPrTot + missingPr
 
-                missingDepTot += missingDepPr
-                missingImportTot += missingImportPr
-                missingAppSpecificTot += missingAppSpecificPr
-                missingOthersTot += missingRulesOtherPr
+                if missing != '0':
+                    withMissing += 1
+                    missingDepTot = missingDepPr + missingDepTot
+                    missingAppSpecificTot = missingAppSpecificPr + missingAppSpecificTot
+                    missingJavaAndroidTot = missingJavaAndroidTot + missingJavaAndroidRules
+                    missingOthersTot = missingRulesOtherPr + missingOthersTot
 
                 recallTot += recall
                 precisionTot += precision
                 accuracyTot += accuracy
                 f1scoreTot += f1score
+
+                if generatedAppSpecific != -1:
+                    generatedAppSpecificTot = generatedAppSpecificTot + generatedAppSpecific
+                    withAppSepcific += 1
 
                 overProtectedTot += overProtectedRulesPr
                 overProtectedCTot += perOverProtectedCRules
@@ -395,28 +515,31 @@ class Tester:
                 bar()
 
         f.close()
-        print("********************\nExperimento:", especificacionesExp, "\n********************")
+        print("********************\nExperimento:\n********************")
+
         print("Correct Avg: " + str(round(correctPrTot / timesToAverage, 2)))
+#        print("Correct App Specific Avg: " + str(round(generatedAppSpecificTot / withAppSepcific, 2)))
         print("OverProtected Rules: " + str(round(overProtectedTot / timesToAverage, 2)))
         print("OverProtected Correct Rules: " + str(round(overProtectedCTot / timesToAverage, 2)))
         print("Necessary OverProtected Rules: " + str(round(NoverProtectedTot / timesToAverage, 2)))
         print("Missing Avg: " + str(round(missingPrTot / timesToAverage, 2)))
         print("Extra Avg: " + str(round(extraPrTot / timesToAverage, 2)))
         print("Completely Correct Rules: " + str(round(completelyCorrectRules / timesToAverage * 100, 2)))
+
         print("---------Data Science Pointers---------")
         print("Precision: " + str(round(precisionTot/timesToAverage, 2)))
         print("Accuracy: " + str(round(accuracyTot/timesToAverage, 2)))
         print("recall: " + str(round(recallTot/timesToAverage, 2)))
         print("F1 Score: " + str(round(f1scoreTot/timesToAverage, 2)))
+
         print("-----------Missing Rules Type-----------")
-        print("Missing Dep Rules: " + str(round(missingDepTot / timesToAverage, 2)))
-        print("Missing Import Rules: " + str(round(missingImportTot / timesToAverage, 2)))
-        print("Missing App Specific Rules: " + str(round(missingAppSpecificTot / timesToAverage, 2)))
-        print("Missing Other Rules: " + str(round(missingOthersTot / timesToAverage, 2)))
+        print("Missing Dep Rules: " + str(round(missingDepTot / withMissing, 2)))
+        print("Missing App Specific Rules: " + str(round(missingAppSpecificTot / withMissing, 2)))
+        print("Missing Java/Android Rules: " + str(round(missingJavaAndroidTot / withMissing, 2)))
+        print("Missing Other Rules: " + str(round(missingOthersTot / withMissing, 2)))
 
     @staticmethod
-    def ruleGeneratingTestDB(db: DBConnect=DBConnect('root', 'Juan.suaz0'), specificAppsToTest=[], timesToAverage=50,
-                             percentage=5, folder='resultsDB', checkApk=False):
+    def ruleGeneratingTestDB(db: DBConnect=DBConnect('root', 'Juan.suaz0'), specificAppsToTest=[], timesToAverage=50, percentage=5, folder='resultsDB', checkApk=False, testCodeAnalisys=False):
 
         print("\n")
 
@@ -434,7 +557,7 @@ class Tester:
                     bar.text('Retrieving Apps To Test and Generating App Objects: ' + app.rsplit('/', 1)[1])
                     appsToTest.append(App(app))
                     bar()
-            Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder, checkApk=checkApk)
+            Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder, checkApk=checkApk, testCodeAnalisys=testCodeAnalisys)
         else:
             appsToTest = []
             with alive_bar(timesToAverage) as bar:
@@ -450,8 +573,7 @@ class Tester:
             db.close()
 
     @staticmethod
-    def ruleGeneratingTestObject(pathToRepo='/Volumes/WanShiTong/Archive/UChile/Título/work/obfApps',
-                                 timesToAverage=50, percentage=5, folder='results', checkApk=False):
+    def ruleGeneratingTestObject(pathToRepo='/Volumes/WanShiTong/Archive/UChile/Título/work/obfApps',timesToAverage=50, percentage=5, folder='results', checkApk=False, testCodeAnalisys=False):
         repo = FDroid(pathToRepo)
         print("\n")
 
@@ -463,16 +585,15 @@ class Tester:
         pathsForComparison = []
 
         with alive_bar(timesToAverage) as bar:
-            for i in range(0, timesToAverage):
 
                 bar.text(' Selecting Apps to Test...')
                 while len(appsToTest) < timesToAverage:
                     app = repo.randomObfuscatedDontWarn()
 
-                    if len(app.analyser.rulesForDeps()) > 1 and len(
+                    if len(app.analyser.appSpecificRules()) > 1 and len(
                             app.getDependencies()) > 1 and app not in appsToTest:
                         appsToTest.append(app)
                         pathsForComparison.append(app.getPath())
-                bar()
-        Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder, checkApk)
+                        bar()
+        #Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder, checkApk=checkApk, testCodeAnalisys=testCodeAnalisys)
         return pathsForComparison

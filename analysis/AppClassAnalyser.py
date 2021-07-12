@@ -1,10 +1,38 @@
 import javalang
+import re
 
 
 class AppClassAnalyser:
 
     def __init__(self, clss):
         self.clss = clss
+
+    @staticmethod
+    def analyseClass(appClass, path, imprt, flags, app, is_kt=False):
+        try:
+            # primero se ven los imports de la clase
+            file = appClass.code
+            ret = []
+            imports = re.findall(imprt, file, flags(re))
+
+            if imports:
+                for im in imports:
+                    ' '.join(im.split())
+                    im = im.split(" ")[-1]
+                    ret.append(im)
+
+            apkResourceLoading = re.findall("\.getResource(AsStream)?\(", file, flags(re))
+
+            if is_kt:
+                appClass.setIsDataClass(bool(re.findall("^data class .+?\(", file, flags(re))))
+
+            if apkResourceLoading:
+                app.insertClassLoadResourceFromAPK(appClass.getPackageLocation(), appClass.getName())
+
+            appClass.imports = ret
+        except UnicodeDecodeError:
+            print('*************************  unicode decode error: no se puede leer ', path)
+            return []
 
     def detectDataClass(self, prnt=False):
         cls = self.clss

@@ -13,9 +13,9 @@ class FDroid:
 
         self.path = path
         self.apps = []
-        self.appsOfuscadas = []
-        self.appsNoOfuscadas = []
-        self.appsOfuscadasSinDontOf = []
+        self.appsObfuscated = []
+        self.appsUnObfuscated = []
+        self.appsObfuscatedWithoutDontOfRule = []
 
         if save:
             self.base = DBConnect()
@@ -30,11 +30,11 @@ class FDroid:
                 if app.isObfuscated():
                     if save:
                         app.saveInDB(self.base)
-                    self.appsOfuscadas.append(app)
+                    self.appsObfuscated.append(app)
                     if not app.dontObfuscateRule:
-                        self.appsOfuscadasSinDontOf.append(app)
+                        self.appsObfuscatedWithoutDontOfRule.append(app)
                 else:
-                    self.appsNoOfuscadas.append(app)
+                    self.appsUnObfuscated.append(app)
         if save:
             self.base.close()
 
@@ -46,13 +46,13 @@ class FDroid:
         return len(self.apps)
 
     def obfuscatedApps(self):
-        return self.appsOfuscadas
+        return self.appsObfuscated
 
     def numObfuscatedApps(self):
         return len(self.obfuscatedApps())
 
     def unObfuscatedApps(self):
-        return self.appsNoOfuscadas
+        return self.appsUnObfuscated
 
     def numUnObfuscatedApps(self):
         return len(self.unObfuscatedApps())
@@ -61,10 +61,10 @@ class FDroid:
         return random.choice(self.apps)
 
     def randomObfuscated(self):
-        return random.choice(self.appsOfuscadas)
+        return random.choice(self.appsObfuscated)
 
     def randomNotObfuscated(self):
-        return random.choice(self.appsNoOfuscadas)
+        return random.choice(self.appsUnObfuscated)
 
     def randomObfuscatedDontWarn(self):
         return random.choice(self.ofAppsWithoutDontOfRule())
@@ -80,4 +80,4 @@ class FDroid:
         return self.apps
 
     def ofAppsWithoutDontOfRule(self):
-        return self.appsOfuscadasSinDontOf
+        return self.appsObfuscatedWithoutDontOfRule

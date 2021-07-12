@@ -2,7 +2,7 @@ from classes.DBConnect import DBConnect
 from pygtrie import StringTrie
 from classes.AppClass import *
 from classes.ProGuardRuleFile import *
-from classes.AppAnalyser import *
+from analysis.AppAnalyser import *
 import subprocess
 import shutil
 
@@ -41,6 +41,9 @@ class App:
         self.packageLocationsExtended = StringTrie(separator='.')
         self.classLoadResourceFromAPK = StringTrie(separator='.')
         self.classLoadedByJNIOnNativeSide = StringTrie(separator='.')
+        self.dataClasses = StringTrie(separator='.')
+
+        self.obfuscatedDirectories = []
 
         # se ve si esta activado proguard y donde estan los archivos de reglas
         isObfGradle = self.analyser.isAppObfuscatedG(self.buildGradleFiles)
@@ -56,11 +59,11 @@ class App:
             ktClassesPaths = self.analyser.findFilePaths(path, "*.kt")
 
             for pth in javaClassesPaths:
-                if 'src/main/' in pth:
-                    self.classes.append(JavaClass(pth, self, 'src/main/'))
+                if 'src/main/java' in pth:
+                    self.classes.append(JavaClass(pth, self, 'src/main/java/'))
             for pth in ktClassesPaths:
-                if 'src/main/' in pth:
-                    self.classes.append(KtClass(pth, self, 'src/main/'))
+                if 'src/main/java' in pth:
+                    self.classes.append(KtClass(pth, self, 'src/main/java/'))
 
             proguardRulePaths = []
             for ruleFileName in (isObfProp + isObfGradle):
@@ -72,6 +75,12 @@ class App:
         # se registran las dependencias
         self.dependencies = self.analyser.extractDependencies(self.buildGradleFiles)
         self.analyser.detectJavaCodeCalledFromNativeInstances()
+
+    def getObfuscatedDirectories(self):
+        return self.obfuscatedDirectories
+
+    def insertObfuscatedDirectory(self, dir):
+        self.obfuscatedDirectories.append(dir)
 
     def getRules(self):
         retRules = []
@@ -88,7 +97,7 @@ class App:
         retClasses = []
 
         for cls in classes:
-            if cls.isDataClass():
+            if cls.getIsDataClass():
                 retClasses.append(cls)
 
         return retClasses
@@ -157,6 +166,21 @@ class App:
         pgFile = ProGuard(fileToInclude, self)
         self.proguardRuleFiles.append(pgFile)
 
+    def insertDataClassPackageLocation(self, packageLocation, className):
+        trie = self.dataClasses
+
+        if packageLocation not in trie.keys():
+            trie[packageLocation] = [className]
+        else:
+            temp = trie.pop(packageLocation)
+            temp.append(className)
+            trie[packageLocation] = temp
+
+        self.dataClasses = trie
+
+    def getDataClassPackageLocations(self):
+        return self.dataClasses
+
     def insertClassPackageLocation(self, packageLocation, className):
         trie = self.packageLocations
 
@@ -172,6 +196,12 @@ class App:
     def getPackageLocations(self):
         return self.packageLocations
 
+    def isInPackageStructureList(self, classLocationReference):
+        ret = False
+        for clsRef in classLocationReference:
+            ret = bool(self.isInPackageStructure(clsRef) or ret)
+        return ret
+
     def isInPackageStructure(self, classLocationReference):
         separateClassAndElement = classLocationReference.rsplit('.', 1)
 
@@ -186,6 +216,8 @@ class App:
 
             elif packageLocationsTrie.has_key(locationReference):
                 return True
+            else:
+                return False
         else:
             return False
 
@@ -282,28 +314,38 @@ class App:
         returnRules = []
 
         for key in classes.keys():
-            resourceLoadingClasses = classes[key]
-            if key not in allClasses.keys():
-                for clss in resourceLoadingClasses:
-                    rule = rulePrefix + key + '.' + clss.split('.', 1)[0] + ruleSuffix
-                    if rule not in returnRules:
-                        returnRules.append(rule)
-            else:
-                classesInSameLocation = allClasses[key]
-
-                representation = len(resourceLoadingClasses)/len(classesInSameLocation)*100
-                if representation >= 50:
-                    returnRules.append(rulePrefix + key + ".*" + ruleSuffix)
-                else:
+            isInDirectory = False
+            for dir in self.getObfuscatedDirectories():
+                searching = re.sub('\.', '/', key)
+                if self.analyser.findFilePaths(dir, searching):
+                    isInDirectory = True
+            if isInDirectory:
+                resourceLoadingClasses = classes[key]
+                if key not in allClasses.keys():
                     for clss in resourceLoadingClasses:
                         rule = rulePrefix + key + '.' + clss.split('.', 1)[0] + ruleSuffix
                         if rule not in returnRules:
                             returnRules.append(rule)
+                else:
+                    classesInSameLocation = allClasses[key]
+
+                    representation = len(resourceLoadingClasses)/len(classesInSameLocation)*100
+                    if representation >= 50:
+                        returnRules.append(rulePrefix + key + ".*" + ruleSuffix)
+                    else:
+                        for clss in resourceLoadingClasses:
+                            rule = rulePrefix + key + '.' + clss.split('.', 1)[0] + ruleSuffix
+                            if rule not in returnRules:
+                                returnRules.append(rule)
         return returnRules
 
     def getRulesForClassesLoadedFromNativeSide(self):
         JNIClasses = self.getClassesLoadedByJNI()
         return self.getRulesForClasses(JNIClasses, "keep, includedescriptorclasses class ", " { *; }")
+
+    def getRulesForDataClasses(self):
+        DataClasses = self.getDataClassPackageLocations()
+        return self.getRulesForClasses(DataClasses, "keep class ")
 
     def unpackApk(self, bar, show):
 

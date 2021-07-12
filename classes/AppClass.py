@@ -1,5 +1,5 @@
 import re
-from classes.AppClassAnalyser import *
+from analysis.AppClassAnalyser import *
 
 
 class AppClass:
@@ -8,6 +8,7 @@ class AppClass:
         return self.name + " Class Object"
 
     def __init__(self, path, app, separator, extended):
+        self.analyser = AppClassAnalyser(self)
         self.name = path.split('/')[-1]
         self.path = path
         self.packageLocation = '.'.join(self.path.split(separator)[1].split('/')[:-1])
@@ -25,39 +26,25 @@ class AppClass:
         self.code = f.read()
         f.close()
 
+    def getPackageLocation(self):
+        return self.packageLocation
+
+    def getName(self):
+        return self.name
+
     def getCode(self):
         return self.code
 
-    def analyseClass(self, path, imprt, flags, app, is_kt=False):
-        try:
-            # primero se ven los imports de la clase
-            file = self.code
-            ret = []
-            imports = re.findall(imprt, file, flags(re))
-
-            if imports:
-                for im in imports:
-                    ' '.join(im.split())
-                    im = im.split(" ")[-1]
-                    ret.append(im)
-
-            apkResourceLoading = re.findall("\.getResource(AsStream)?\(", file, flags(re))
-
-            if is_kt:
-                self.isDataClass = bool(re.findall("^data class .+?\(", file, flags(re)))
-
-            if apkResourceLoading:
-                app.insertClassLoadResourceFromAPK(self.packageLocation, self.name)
-
-            self.imports = ret
-        except UnicodeDecodeError:
-            print('*************************  unicode decode error: no se puede leer ', path)
-            return []
+    def setImports(self, imports):
+        self.imports = imports
 
     def getImports(self):
         return self.imports
 
-    def isDataClass(self):
+    def setIsDataClass(self, isit):
+        self.isDataClass = isit
+
+    def getIsDataClass(self):
         return self.isDataClass
 
 
@@ -65,16 +52,21 @@ class JavaClass(AppClass):
 
     def __init__(self, path, app, separator, extended=False):
         super().__init__(path, app, separator, extended)
-        self.analyseClass(path, '^import(.*?);', lambda x: x.MULTILINE | x.DOTALL, app)
-        self.analyser = AppClassAnalyser(self)
+        self.analyser.analyseClass(self, path, '^import(.*?);', lambda x: x.MULTILINE | x.DOTALL, app)
         try:
-            self.isDataClass = self.analyser.detectDataClass()
+            self.setIsDataClass(self.analyser.detectDataClass())
         except javalang.parser.JavaSyntaxError:
             if 'apk/debug/source/' not in path: print(path)
+
+        if self.isDataClass:
+            app.insertDataClassPackageLocation(self.packageLocation, self.name)
 
 
 class KtClass(AppClass):
 
     def __init__(self, path, app, separator, extended=False):
         super().__init__(path, app, separator, extended)
-        self.analyseClass(path, '^import(.*?)$', lambda x: x.MULTILINE, app, True)
+        self.analyser.analyseClass(self, path, '^import(.*?)$', lambda x: x.MULTILINE, app, True)
+
+        if self.isDataClass:
+            app.insertDataClassPackageLocation(self.packageLocation, self.name)
