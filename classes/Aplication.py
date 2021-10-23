@@ -312,6 +312,7 @@ class App:
         allClasses = self.getPackageLocations()
 
         returnRules = []
+        unobfuscated_cases = 0
 
         for key in classes.keys():
             isInDirectory = False
@@ -330,14 +331,16 @@ class App:
                     classesInSameLocation = allClasses[key]
 
                     representation = len(resourceLoadingClasses)/len(classesInSameLocation)*100
-                    if representation >= 50:
+                    if representation == 100:
                         returnRules.append(rulePrefix + key + ".*" + ruleSuffix)
                     else:
                         for clss in resourceLoadingClasses:
                             rule = rulePrefix + key + '.' + clss.split('.', 1)[0] + ruleSuffix
                             if rule not in returnRules:
                                 returnRules.append(rule)
-        return returnRules
+            else:
+                unobfuscated_cases += 1
+        return returnRules, unobfuscated_cases
 
     def getRulesForClassesLoadedFromNativeSide(self):
         JNIClasses = self.getClassesLoadedByJNI()
@@ -347,7 +350,7 @@ class App:
         DataClasses = self.getDataClassPackageLocations()
         return self.getRulesForClasses(DataClasses, "keep class ")
 
-    def unpackApk(self, bar, show):
+    def unpackApk(self, bar, show, verbose):
 
         if self.hasDebugApk:
             for apk in self.hasDebugApk:
@@ -362,12 +365,13 @@ class App:
                     originalContentInApkDir.append(currentDir + '/' + item)
                 if not sourceDirPresent:
                     try:
-                        bar.text(show + '. Decompressing APK.')
+                        if verbose:
+                            bar.text(show + '. Decompressing APK.')
                         with open(os.devnull, 'wb') as devnull:
                             subprocess.check_call(['unzip', '-o', apk, '-d', currentDir], stdout=devnull,
                                                   stderr=subprocess.STDOUT)
-
-                        bar.text(show + '. Reformatting Dex file to Jar.')
+                        if verbose:
+                            bar.text(show + '. Reformatting Dex file to Jar.')
                         with open(os.devnull, 'wb') as devnull:
                             d2j = '/Volumes/WanShiTong/Archive/UChile/Título/work/tools/dex2jar/2.0/bin/d2j-dex2jar'
 
@@ -377,8 +381,8 @@ class App:
                                     if len(extension) > 1 and extension[1] == 'dex':
                                         subprocess.check_call([d2j, '-e', currentDir+'errors.zip', '-o', currentDir+'/classes-dex2jar.jar',
                                                                currentDir+'/'+file], stdout=devnull, stderr=subprocess.STDOUT)
-
-                        bar.text(show + '. Unpacking Jar.')
+                        if verbose:
+                            bar.text(show + '. Unpacking Jar.')
                         try:
                             with open(os.devnull, 'wb') as devnull:
                                 jdCli = '/Volumes/WanShiTong/Archive/UChile/Título/work/tools/jd-cli-1.2.0-dist/jd-cli.jar'
@@ -389,8 +393,8 @@ class App:
                             pass
                     except subprocess.CalledProcessError:
                         print('Error en', currentDir)
-
-            bar.text(show + '. Parsing Extended Classes.')
+            if verbose:
+                bar.text(show + '. Parsing Extended Classes.')
             javaClassesPaths = self.analyser.findFilePaths(currentDir + '/source', "*.java")
             ktClassesPaths = self.analyser.findFilePaths(currentDir + '/source', "*.kt")
 
@@ -398,8 +402,8 @@ class App:
                     self.classes.append(AppClass(pth, self, 'apk/debug/source/', True))
             for pth in ktClassesPaths:
                     self.classes.append(AppClass(pth, self, 'apk/debug/source/', True))
-
-            bar.text(show + '. Deleting Temporary Files.')
+            if verbose:
+                bar.text(show + '. Deleting Temporary Files.')
             for item in os.listdir(currentDir):
                 item = currentDir + '/' + item
                 if item not in originalContentInApkDir and item != source:

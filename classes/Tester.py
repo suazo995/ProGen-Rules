@@ -1,3 +1,5 @@
+import errno
+import os
 import sys
 from alive_progress import alive_bar
 from classes.FDroidClass import FDroid
@@ -165,19 +167,20 @@ class Tester:
             for ref in referenceAux:
                 if '## is app specific rule ' in ref:
                     reference.remove(ref)
-                    appSecificRules.append(ref)
+                    #appSecificRules.append(ref)
 
             print('Testing Code Analysis')
 
-            #data_class_rules = app.getRulesForDataClasses()
-            apk_rules = app.getRulesForResourceLoadingFromAPK()
-            jni_rules = app.getRulesForClassesLoadedFromNativeSide()
+            data_class_rules, unObfCases = app.getRulesForDataClasses()
+            #apk_rules = app.getRulesForResourceLoadingFromAPK()
+            #jni_rules= app.getRulesForClassesLoadedFromNativeSide()
+            obfCases = len(data_class_rules)
 
             #generatedAppSpecificRules.extend(data_class_rules)
-            generatedAppSpecificRules.extend(apk_rules)
-            generatedAppSpecificRules.extend(jni_rules)
+            #generatedAppSpecificRules.extend(apk_rules)
+            #generatedAppSpecificRules.extend(data_class_rules)
 
-            appSpecificGenerated = len(apk_rules) + len(jni_rules)# + len(data_class_rules)
+            appSpecificGenerated = len(data_class_rules) # + len(data_class_rules) + len(apk_rules)
 
         correctRules = []
         extraRules = []
@@ -215,6 +218,15 @@ class Tester:
         newCorrect = []
         if prnt:
             path = folder + "/" + app.getName()
+
+            filename = path + "/GeneratedVsExtracted_" + app.getName() + ".pro"
+            if not os.path.exists(os.path.dirname(filename)):
+                try:
+                    os.makedirs(os.path.dirname(filename))
+                except OSError as exc:  # Guard against race condition
+                    if exc.errno != errno.EEXIST:
+                        raise
+
             f = open(path + "/GeneratedVsExtracted_" + app.getName() + ".pro", "w")
 
             # Chequeamos como son las reglas que nos faltaron
@@ -286,7 +298,14 @@ class Tester:
                     newCorrect.append(write_rule)
                     missingRules.remove(elm4)
 
+            keep = 0
+            dont = 0
             for elm4 in missingRules:
+                if 'keep' in elm4:
+                    keep +=1
+                elif 'dont' in elm4:
+                    dont +=1
+
                 if '## is app specific rule' in elm4:
                     missinAppSpecificRules += 1
                     f.write('\t' + elm4 + '\n')
@@ -381,11 +400,12 @@ class Tester:
                 "missingDepRules": perMissingDepRules, 'perMissingJavaAndroidRules': perMissingJavaAndroidRules,
                 "missingAppSpecificRules": perMissingAppSpecificRules, "missingRulesOther": perMissingRulesOther,
                 "overProtectedRules": perOverProtectedRules, 'perOverProtectedCRules':perOverProtectedCRules,
-                'necessary_perOverProtectedRules': necessary_perOverProtectedRules, 'generatedAppSpecific': correctly_generated_app_specific_rules,
-                'precision': precision, 'accuracy': accuracy, 'recall': recall, 'f1score': f1score}
+                'necessary_perOverProtectedRules': necessary_perOverProtectedRules,
+                'generatedAppSpecific': correctly_generated_app_specific_rules, "keep": keep, "dont": dont,
+                'precision': precision, 'accuracy': accuracy, 'recall': recall, 'f1score': f1score, "obfCases":obfCases, "unObfCases": unObfCases}
 
     @staticmethod
-    def ruleGeneratingTestTemplate(methodToTest, appsToTest, timesToAverage=50,  percentage=5, folder='results', checkApk=False, testCodeAnalisys=False):
+    def ruleGeneratingTestTemplate(methodToTest, appsToTest, timesToAverage=50,  percentage=5, folder='results', checkApk=False, testCodeAnalisys=False, f=None):
         print("\n")
 
         correctPrTot = 0
@@ -394,7 +414,11 @@ class Tester:
 
         withMissing = 0
         withAppSepcific = 0
+        obfCasesTot = 0
+        unObfCasesTot = 0
 
+        keepTot = 0
+        dontTot = 0
         missingDepTot = 0
         missingAppSpecificTot = 0
         missingJavaAndroidTot = 0
@@ -411,9 +435,19 @@ class Tester:
         completelyCorrectRules = 0
 
         generatedAppSpecificTot = 0
+        close = False
+        if f is None:
+            filename = folder + "/percentage-comp-test.csv"
+            if not os.path.exists(os.path.dirname(filename)):
+                try:
+                    os.makedirs(os.path.dirname(filename))
+                except OSError as exc:  # Guard against race condition
+                    if exc.errno != errno.EEXIST:
+                        raise
 
-        f = open(folder + "/percentage-comp-test.csv", "w")
-        f.write("Percentage, Correct, Extra, Remainder\n")
+            f = open(folder + "/percentage-comp-test.csv", "w")
+            f.write("Percentage, Precision, Accuracy, Recall, F1 Score\n")
+            close = True
 
         with alive_bar(timesToAverage) as bar:
             for i in range(0, timesToAverage):
@@ -444,8 +478,12 @@ class Tester:
                 overProtectedRulesPr = similarities["overProtectedRules"]
                 NoverProtectedRulesPr = similarities["necessary_perOverProtectedRules"]
                 perOverProtectedCRules = similarities["perOverProtectedCRules"]
+                keep = similarities["keep"]
+                dont = similarities["keep"]
 
                 generatedAppSpecific = similarities['generatedAppSpecific']
+                obfCases = similarities["obfCases"]
+                unObfCases = similarities["unObfCases"]
 
                 precision = similarities["precision"]
                 accuracy = similarities["accuracy"]
@@ -468,25 +506,27 @@ class Tester:
                 if round(correctPr, 2) == 100.0:
                     completelyCorrectRules += 1
 
-                f.write(str(i / 10) + ", " + correct + ", " + extra + ", " + missing + "\n")
-                print("\n********************\n" + appTested.getName() + "\n")
-                print("Correct Avg: " + correct)
+                f.write(str(percentage) + ", " + correct + ", " + str(round(precision, 2)) + ", " + str(round(accuracy, 2)) + ", " + str(round(recall, 2)) + ", " + str(round(f1score, 2)) + "\n")
+                # print("\n********************\n" + appTested.getName() + "\n")
+                # print("Correct Avg: " + correct)
                 print("Correct App Rules Avg: " + generatedAppSpecificStr)
-                print("OverProtected Rules: " + overProtectedRules)
-                print("OverProtected Correct Rules: " + overProtectedCRules)
-                print("Necessary OverProtected Rules: " + NoverProtectedRules)
-                print("Missing Avg: " + missing)
-                print("Extra Avg: " + extra)
-                print("---------Data Science Pointers---------")
-                print("Precision: " + str(round(precision, 2)))
-                print("Accuracy: " + str(round(accuracy, 2)))
-                print("recall: " + str(round(recall, 2)))
-                print("F1 Score: " + str(round(f1score, 2)))
-                print("----------Missing Rules Type-----------")
-                print("Missing Dep Rules: " + missingDep)
-                print("Missing App Specific Rules: " + missingAppSpecific)
-                print("Missing Java/Android Rules: " + missingJavaAndroid)
-                print("Missing Other Rules: " + missingOther)
+                print(obfCases)
+                print(unObfCases)
+                # print("OverProtected Rules: " + overProtectedRules)
+                # print("OverProtected Correct Rules: " + overProtectedCRules)
+                # print("Necessary OverProtected Rules: " + NoverProtectedRules)
+                # print("Missing Avg: " + missing)
+                # print("Extra Avg: " + extra)
+                # print("---------Data Science Pointers---------")
+                # print("Precision: " + str(round(precision, 2)))
+                # print("Accuracy: " + str(round(accuracy, 2)))
+                # print("recall: " + str(round(recall, 2)))
+                # print("F1 Score: " + str(round(f1score, 2)))
+                # print("----------Missing Rules Type-----------")
+                # print("Missing Dep Rules: " + missingDep)
+                # print("Missing App Specific Rules: " + missingAppSpecific)
+                # print("Missing Java/Android Rules: " + missingJavaAndroid)
+                # print("Missing Other Rules: " + missingOther)
 
                 correctPrTot = correctPrTot + correctPr
                 extraPrTot = extraPrTot + extraPr
@@ -498,6 +538,8 @@ class Tester:
                     missingAppSpecificTot = missingAppSpecificPr + missingAppSpecificTot
                     missingJavaAndroidTot = missingJavaAndroidTot + missingJavaAndroidRules
                     missingOthersTot = missingRulesOtherPr + missingOthersTot
+                    keepTot += keep
+                    dontTot += dont
 
                 recallTot += recall
                 precisionTot += precision
@@ -506,6 +548,8 @@ class Tester:
 
                 if generatedAppSpecific != -1:
                     generatedAppSpecificTot = generatedAppSpecificTot + generatedAppSpecific
+                    unObfCasesTot += unObfCases
+                    obfCasesTot += obfCases
                     withAppSepcific += 1
 
                 overProtectedTot += overProtectedRulesPr
@@ -513,12 +557,14 @@ class Tester:
                 NoverProtectedTot += NoverProtectedRulesPr
 
                 bar()
-
-        f.close()
+        if close:
+            f.close()
         print("********************\nExperimento:\n********************")
 
         print("Correct Avg: " + str(round(correctPrTot / timesToAverage, 2)))
-#        print("Correct App Specific Avg: " + str(round(generatedAppSpecificTot / withAppSepcific, 2)))
+        print("Correct App Specific Avg: " + str(round(generatedAppSpecificTot / withAppSepcific, 2)))
+        print("Obf Cases Avg: " + str(round(obfCasesTot / withAppSepcific, 2)))
+        print("Unobf Cases Avg: " + str(round(unObfCasesTot / withAppSepcific, 2)))
         print("OverProtected Rules: " + str(round(overProtectedTot / timesToAverage, 2)))
         print("OverProtected Correct Rules: " + str(round(overProtectedCTot / timesToAverage, 2)))
         print("Necessary OverProtected Rules: " + str(round(NoverProtectedTot / timesToAverage, 2)))
@@ -533,6 +579,8 @@ class Tester:
         print("F1 Score: " + str(round(f1scoreTot/timesToAverage, 2)))
 
         print("-----------Missing Rules Type-----------")
+        print("Missing Keep Rules: " + str(round(keepTot / withMissing, 2)))
+        print("Missing Dont Rules: " + str(round(dontTot / withMissing, 2)))
         print("Missing Dep Rules: " + str(round(missingDepTot / withMissing, 2)))
         print("Missing App Specific Rules: " + str(round(missingAppSpecificTot / withMissing, 2)))
         print("Missing Java/Android Rules: " + str(round(missingJavaAndroidTot / withMissing, 2)))
@@ -547,8 +595,6 @@ class Tester:
 
         method = dbAnalyser.rulesForAllDepsExcludingApp
 
-        f = open("results/percentage-comp-test.csv", "w")
-        f.write("Percentage, Correct, Extra, Remainder\n")
         if specificAppsToTest:
             appsToTest = []
             with alive_bar(timesToAverage) as bar:
@@ -597,3 +643,35 @@ class Tester:
                         bar()
         #Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder, checkApk=checkApk, testCodeAnalisys=testCodeAnalisys)
         return pathsForComparison
+
+    @classmethod
+    def ruleGeneratingTestPerTest(cls, timesToAverage, specificAppsToTest, checkApk, testCodeAnalisys,db: DBConnect=DBConnect('root', 'Juan.suaz0'),folder='resultsDBPer'):
+
+        print("\n")
+
+        dbAnalyser = DataBaseAnalyser(db)
+
+        method = dbAnalyser.rulesForAllDepsExcludingApp
+
+        filename = folder+"/percentage-comp-test.csv"
+        if not os.path.exists(os.path.dirname(filename)):
+            try:
+                os.makedirs(os.path.dirname(filename))
+            except OSError as exc:  # Guard against race condition
+                if exc.errno != errno.EEXIST:
+                    raise
+
+        f = open(folder+"/percentage-comp-test.csv", "w")
+        f.write("Percentage, Precision, Accuracy, Recall, F1 Score\n")
+        for percentage in range(5,105,5):
+            print(str(percentage)+'% Percent')
+            appsToTest = []
+            with alive_bar(timesToAverage) as bar:
+                bar.text('Retrieving Apps To Test and Generating App Objects: ')
+                for app in specificAppsToTest:
+                    bar.text('Retrieving Apps To Test and Generating App Objects: ' + app.rsplit('/', 1)[1])
+                    appsToTest.append(App(app))
+                    bar()
+            Tester.ruleGeneratingTestTemplate(method, appsToTest, timesToAverage, percentage, folder+'/'+str(percentage), checkApk=checkApk, testCodeAnalisys=testCodeAnalisys, f=f)
+        f.close()
+        db.close()
