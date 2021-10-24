@@ -1,8 +1,6 @@
 import glob
 import re
 import os
-import javalang
-from termcolor import colored
 
 
 class AppAnalyser:
